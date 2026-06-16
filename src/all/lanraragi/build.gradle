@@ -1,0 +1,7 @@
+ext {
+    extName = 'LANraragi'
+    extClass = '.LANraragiFactory'
+    extVersionCode = 21
+}
+
+apply plugin: "kei.plugins.extension.legacy"

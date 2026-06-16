@@ -1,0 +1,10 @@
+ext {
+    extName = 'Aqua Manga'
+    extClass = '.AquaManga'
+    themePkg = 'madara'
+    baseUrl = 'https://aquareader.org'
+    overrideVersionCode = 11
+    isNsfw = false
+}
+
+apply plugin: "kei.plugins.extension.legacy"

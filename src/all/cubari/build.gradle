@@ -1,0 +1,7 @@
+ext {
+    extName = 'Cubari'
+    extClass = '.CubariFactory'
+    extVersionCode = 26
+}
+
+apply plugin: "kei.plugins.extension.legacy"

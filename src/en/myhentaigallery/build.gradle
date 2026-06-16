@@ -1,0 +1,8 @@
+ext {
+    extName = 'MyHentaiGallery'
+    extClass = '.MyHentaiGallery'
+    extVersionCode = 9
+    isNsfw = true
+}
+
+apply plugin: "kei.plugins.extension.legacy"

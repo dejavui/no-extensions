@@ -1,0 +1,10 @@
+ext {
+    extName = 'Shiba Manga'
+    extClass = '.ShibaManga'
+    themePkg = 'madara'
+    baseUrl = 'https://shibamanga.com'
+    overrideVersionCode = 0
+    isNsfw = true
+}
+
+apply plugin: "kei.plugins.extension.legacy"

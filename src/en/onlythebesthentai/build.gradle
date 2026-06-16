@@ -1,0 +1,8 @@
+ext {
+    extName = 'Only The Best Hentai'
+    extClass = '.OnlyTheBestHentai'
+    extVersionCode = 1
+    isNsfw = true
+}
+
+apply plugin: "kei.plugins.extension.legacy"

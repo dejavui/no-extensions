@@ -1,0 +1,8 @@
+ext {
+    extName = 'DeviantArt'
+    extClass = '.DeviantArt'
+    extVersionCode = 10
+    isNsfw = true
+}
+
+apply plugin: "kei.plugins.extension.legacy"

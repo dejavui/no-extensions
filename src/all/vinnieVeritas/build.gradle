@@ -1,0 +1,8 @@
+ext {
+    extName = 'Vinne Veritas - CCC'
+    extClass = '.VinnieVeritasFactory'
+    extVersionCode = 3
+    isNsfw = false
+}
+
+apply plugin: "kei.plugins.extension.legacy"

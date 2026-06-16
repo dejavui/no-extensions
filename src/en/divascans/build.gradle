@@ -1,0 +1,10 @@
+ext {
+    extName = 'Diva Scans'
+    extClass = '.DivaScans'
+    themePkg = 'iken'
+    baseUrl = 'https://divatoon.com'
+    overrideVersionCode = 0
+    isNsfw = true
+}
+
+apply plugin: "kei.plugins.extension.legacy"

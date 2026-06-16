@@ -1,0 +1,10 @@
+ext {
+    extName = 'MangaClash'
+    extClass = '.MangaClash'
+    themePkg = 'madara'
+    baseUrl = 'https://mangaclash.com'
+    overrideVersionCode = 6
+    isNsfw = true
+}
+
+apply plugin: "kei.plugins.extension.legacy"

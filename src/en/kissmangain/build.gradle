@@ -1,0 +1,10 @@
+ext {
+    extName = 'Kissmanga.in'
+    extClass = '.KissmangaIn'
+    themePkg = 'madara'
+    baseUrl = 'https://kissmanga.in'
+    overrideVersionCode = 4
+    isNsfw = true
+}
+
+apply plugin: "kei.plugins.extension.legacy"

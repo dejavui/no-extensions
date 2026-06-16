@@ -1,0 +1,7 @@
+ext {
+    extName = 'ComicsKingdom'
+    extClass = '.ComicsKingdomFactory'
+    extVersionCode = 3
+}
+
+apply plugin: "kei.plugins.extension.legacy"

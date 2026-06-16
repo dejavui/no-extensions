@@ -1,0 +1,10 @@
+ext {
+    extName = 'Manhwajoy'
+    extClass = '.Manhwajoy'
+    themePkg = 'madara'
+    baseUrl = 'https://manhwajoy.com'
+    overrideVersionCode = 0
+    isNsfw = true
+}
+
+apply plugin: "kei.plugins.extension.legacy"

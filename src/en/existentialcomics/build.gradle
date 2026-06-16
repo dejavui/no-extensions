@@ -1,0 +1,8 @@
+ext {
+    extName = 'Existential Comics'
+    extClass = '.ExistentialComics'
+    extVersionCode = 5
+    isNsfw = false
+}
+
+apply plugin: "kei.plugins.extension.legacy"
