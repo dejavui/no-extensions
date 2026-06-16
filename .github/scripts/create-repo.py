@@ -20,10 +20,11 @@ REPO_ICON_DIR = REPO_DIR / "icon"
 
 REPO_ICON_DIR.mkdir(parents=True, exist_ok=True)
 
-# Add error handling for output.json
+# Validate output.json
 output_file = Path("output.json")
 if not output_file.exists():
-    print("Error: output.json not found. Inspector.jar may have failed.")
+    print(f"Error: output.json not found at {output_file.absolute()}")
+    print("Inspector.jar may have failed to generate output.")
     exit(1)
 
 if output_file.stat().st_size == 0:
@@ -32,9 +33,14 @@ if output_file.stat().st_size == 0:
 
 try:
     with open("output.json", encoding="utf-8") as f:
-        inspector_data = json.load(f)
+        content = f.read()
+        if not content.strip():
+            print("Error: output.json is empty")
+            exit(1)
+        inspector_data = json.loads(content)
 except json.JSONDecodeError as e:
     print(f"Error: Invalid JSON in output.json: {e}")
+    print(f"Content: {content[:200]}")
     exit(1)
 
 index_data = []
@@ -68,7 +74,7 @@ for apk in REPO_APK_DIR.iterdir():
         if (
                 source_language != language
                 and source_language not in {"all", "other"}
-                and language not in {"other"}
+                and language not in {"all", "other"}
         ):
             language = source_language
 

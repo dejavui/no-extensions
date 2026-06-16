@@ -108,7 +108,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: ~/apk-artifacts
-          
+
       - name: Check if APKs exist
         run: |
           if [ ! -d "$HOME/apk-artifacts" ] || [ -z "$(find $HOME/apk-artifacts -name '*.apk' -type f)" ]; then
@@ -132,15 +132,24 @@ jobs:
       - name: Create repo artifacts
         run: |
           cd main
+          pwd
+          echo "Directory contents before move-built-apks.py:"
+          ls -la ~/apk-artifacts/ || echo "No apk-artifacts found"
+          
           python ./.github/scripts/move-built-apks.py
           
-          # Debug: Check if APKs exist
-          if [ ! -d "repo/apk" ] || [ -z "$(ls -A repo/apk)" ]; then
-            echo "Error: No APKs found in repo/apk"
+          echo "Directory contents after move-built-apks.py:"
+          ls -la repo/apk/ || echo "repo/apk directory empty or not found"
+          
+          # Check if APKs were moved successfully
+          APK_COUNT=$(find repo/apk -name "*.apk" -type f 2>/dev/null | wc -l)
+          echo "APK count in repo/apk: $APK_COUNT"
+          
+          if [ "$APK_COUNT" -eq 0 ]; then
+            echo "Error: No APKs in repo/apk after move-built-apks.py"
             exit 1
           fi
           
-          # Fetch Inspector with better error handling
           INSPECTOR_LINK="$(curl -s "https://api.github.com/repos/keiyoushi/extensions-inspector/releases/latest" | jq -r '.assets[0]?.browser_download_url // empty')"
           if [ -z "$INSPECTOR_LINK" ]; then
             echo "Error: Could not fetch Inspector link"
@@ -158,6 +167,7 @@ jobs:
           
           java -jar ./Inspector.jar "repo/apk" "output.json" "tmp" || {
             echo "Error: Inspector.jar execution failed"
+            ls -la output.json || echo "No output.json"
             exit 1
           }
           
