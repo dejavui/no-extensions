@@ -20,8 +20,22 @@ REPO_ICON_DIR = REPO_DIR / "icon"
 
 REPO_ICON_DIR.mkdir(parents=True, exist_ok=True)
 
-with open("output.json", encoding="utf-8") as f:
-    inspector_data = json.load(f)
+# Add error handling for output.json
+output_file = Path("output.json")
+if not output_file.exists():
+    print("Error: output.json not found. Inspector.jar may have failed.")
+    exit(1)
+
+if output_file.stat().st_size == 0:
+    print("Error: output.json is empty. Inspector.jar may have failed.")
+    exit(1)
+
+try:
+    with open("output.json", encoding="utf-8") as f:
+        inspector_data = json.load(f)
+except json.JSONDecodeError as e:
+    print(f"Error: Invalid JSON in output.json: {e}")
+    exit(1)
 
 index_data = []
 
@@ -33,7 +47,7 @@ for apk in REPO_APK_DIR.iterdir():
             "--include-meta-data",
             "badging",
             apk,
-        ]
+            ]
     ).decode()
 
     package_info = next(x for x in badging.splitlines() if x.startswith("package: "))
@@ -41,7 +55,7 @@ for apk in REPO_APK_DIR.iterdir():
     application_icon = APPLICATION_ICON_320_REGEX.search(badging).group(1)
 
     with ZipFile(apk) as z, z.open(application_icon) as i, (
-        REPO_ICON_DIR / f"{package_name}.png"
+            REPO_ICON_DIR / f"{package_name}.png"
     ).open("wb") as f:
         f.write(i.read())
 
@@ -52,9 +66,9 @@ for apk in REPO_APK_DIR.iterdir():
         source_language = sources[0]["lang"]
 
         if (
-            source_language != language
-            and source_language not in {"all", "other"}
-            and language not in {"all", "other"}
+                source_language != language
+                and source_language not in {"all", "other"}
+                and language not in {"other"}
         ):
             language = source_language
 

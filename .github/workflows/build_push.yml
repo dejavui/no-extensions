@@ -126,13 +126,34 @@ jobs:
         run: |
           cd main
           python ./.github/scripts/move-built-apks.py
+          
+          # Debug: Check if APKs exist
+          if [ ! -d "repo/apk" ] || [ -z "$(ls -A repo/apk)" ]; then
+            echo "Error: No APKs found in repo/apk"
+            exit 1
+          fi
+          
+          # Fetch Inspector with better error handling
           INSPECTOR_LINK="$(curl -s "https://api.github.com/repos/keiyoushi/extensions-inspector/releases/latest" | jq -r '.assets[0]?.browser_download_url // empty')"
           if [ -z "$INSPECTOR_LINK" ]; then
             echo "Error: Could not fetch Inspector link"
+            curl -s "https://api.github.com/repos/keiyoushi/extensions-inspector/releases/latest" | head -20
             exit 1
           fi
+          
+          echo "Downloading Inspector from: $INSPECTOR_LINK"
           curl -L "$INSPECTOR_LINK" -o ./Inspector.jar
-          java -jar ./Inspector.jar "repo/apk" "output.json" "tmp"
+          
+          if [ ! -f "./Inspector.jar" ]; then
+            echo "Error: Inspector.jar download failed"
+            exit 1
+          fi
+          
+          java -jar ./Inspector.jar "repo/apk" "output.json" "tmp" || {
+            echo "Error: Inspector.jar execution failed"
+            exit 1
+          }
+          
           python ./.github/scripts/create-repo.py
 
       - name: Checkout repo branch
