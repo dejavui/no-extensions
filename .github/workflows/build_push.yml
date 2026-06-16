@@ -102,10 +102,6 @@ jobs:
     if: "github.repository == '${{ github.repository }}'"
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      REPO_NAME: "not-extensions"
-      SITE_NAME: "My Extensions"
-      SITE_URL: "https://${{ github.repository_owner }}.github.io/${{ env.REPO_NAME }}"
     steps:
       - name: Download APK artifacts
         uses: actions/download-artifact@v4
@@ -137,7 +133,7 @@ jobs:
       - name: Checkout repo branch
         uses: actions/checkout@v4
         with:
-          repository: ${{ github.repository_owner }}/not-extensions
+          repository: dejavui/not-extensions
           token: ${{ secrets.BOT_PAT }}
           ref: repo
           path: repo
