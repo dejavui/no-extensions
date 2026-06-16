@@ -1,6 +1,0 @@
-ext {
-    extName = "DiLib"
-    extClass = ".DiLib"
-    extVersionCode = 1
-}
-apply plugin: "kei.plugins.extension.legacy"
