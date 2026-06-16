@@ -108,6 +108,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: ~/apk-artifacts
+          
+      - name: Check if APKs exist
+        run: |
+          if [ ! -d "$HOME/apk-artifacts" ] || [ -z "$(find $HOME/apk-artifacts -name '*.apk' -type f)" ]; then
+            echo "Warning: No APKs found. Build may have skipped all modules."
+            exit 0
+          fi
 
       - name: Set up JDK
         uses: actions/setup-java@v4
