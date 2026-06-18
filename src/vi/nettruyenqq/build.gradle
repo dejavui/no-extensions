@@ -1,7 +1,0 @@
-ext {
-    extName = 'NetTruyenQQ'
-    extClass = '.NetTruyenQQ'
-    extVersionCode = 1
-}
-
-apply plugin: "kei.plugins.extension.legacy"
