@@ -200,9 +200,13 @@ class HentaiCB :
             ?: return super.pageListParse(document).distinctBy { it.imageUrl }
 
         val chapterUrl = document.location()
+        val challenge = client.newCall(GET("$baseUrl/wp-json/manga-reader/v1/challenge")).execute()
+            .parseAs<ChallengeDto>()
+            .nonce
         val apiHeaders = headers.newBuilder()
             .set("Referer", chapterUrl)
-            .set("Accept", "application/json; charset=UTF-8")
+            .set("Accept", "application/json")
+            .set("X-Masr-Nonce", challenge)
             .build()
         val images = client.newCall(GET("$baseUrl/wp-json/manga-reader/v1/images", apiHeaders)).execute()
             .parseAs<SecureReaderDto>()
@@ -256,6 +260,11 @@ class HentaiCB :
             }
         }.let(screen::addPreference)
     }
+
+    @Serializable
+    class ChallengeDto(
+        val nonce: String,
+    )
 
     @Serializable
     class SecureReaderDto(
