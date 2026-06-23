@@ -150,7 +150,7 @@ class NetTruyen0209 :
         EditTextPreference(screen.context).apply {
             key = PREF_CUSTOM_DOMAIN
             title = "Tên miền tùy chỉnh"
-            summary = "Nhập tên miền đầy đủ (ví dụ: https://nettruyen10s.com)"
+            summary = "Nhập tên miền đầy đủ (ví dụ: $DEFAULT_DOMAIN)"
             setDefaultValue(DEFAULT_DOMAIN)
             dialogTitle = "Ghi đè URL cơ sở"
             dialogMessage = "Default: $DEFAULT_DOMAIN"
@@ -174,7 +174,7 @@ class NetTruyen0209 :
     private fun getPrefBaseUrl(): String = preferences.getString(PREF_CUSTOM_DOMAIN, DEFAULT_DOMAIN)!!.removeSuffix("/")
 
     companion object {
-        private const val DEFAULT_DOMAIN = "https://nettruyen10s.com"
+        private const val DEFAULT_DOMAIN = "https://nettruyen11s.com"
         private const val PREF_DEFAULT_BASE_URL = "pref_default_base_url"
         private const val PREF_BASE_URL = "pref_base_url"
         private const val PREF_CUSTOM_DOMAIN = "pref_custom_domain"
