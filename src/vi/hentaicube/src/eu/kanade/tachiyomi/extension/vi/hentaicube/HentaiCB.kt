@@ -200,19 +200,34 @@ class HentaiCB :
             ?: return super.pageListParse(document).distinctBy { it.imageUrl }
 
         val chapterUrl = document.location()
-        val challenge = client.newCall(GET("$baseUrl/wp-json/manga-reader/v1/challenge")).execute()
+        val challengeHeader = headers.newBuilder()
+            .set("Referer", chapterUrl)
+            .set("Accept", "application/json")
+            .build()
+        val challenge = client.newCall(GET("$baseUrl/wp-json/manga-reader/v1/challenge", challengeHeader)).execute()
             .parseAs<ChallengeDto>()
-            .nonce
         val apiHeaders = headers.newBuilder()
             .set("Referer", chapterUrl)
             .set("Accept", "application/json")
-            .set("X-Masr-Nonce", challenge)
+            .set("X-Masr-Nonce", challenge.nonce)
+            .set("X-Masr-Session", challenge.session)
             .build()
-        val images = client.newCall(GET("$baseUrl/wp-json/manga-reader/v1/images", apiHeaders)).execute()
-            .parseAs<SecureReaderDto>()
-            .images
 
-        return images.mapIndexed { index, imageUrl ->
+        val imageUrls = mutableListOf<String>()
+        var offset = 0
+        val limit = 7
+        while (true) {
+            val response = client.newCall(GET("$baseUrl/wp-json/manga-reader/v1/images?offset=$offset&limit=$limit", apiHeaders)).execute()
+            val data = response.parseAs<SecureReaderDto>()
+            imageUrls.addAll(data.images)
+
+            if (imageUrls.size >= data.count || data.images.isEmpty()) {
+                break
+            }
+            offset += limit
+        }
+
+        return imageUrls.mapIndexed { index, imageUrl ->
             Page(index, chapterUrl, imageUrl)
         }
     }
@@ -264,10 +279,12 @@ class HentaiCB :
     @Serializable
     class ChallengeDto(
         val nonce: String,
+        val session: String,
     )
 
     @Serializable
     class SecureReaderDto(
+        val count: Int,
         val images: List<String>,
     )
 
