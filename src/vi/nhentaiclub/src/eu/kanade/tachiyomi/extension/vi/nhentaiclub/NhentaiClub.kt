@@ -32,7 +32,7 @@ class NhentaiClub : HttpSource() {
     override val id: Long = 9124366814387777661
 
     override val client = network.client.newBuilder()
-        .rateLimit(5)
+        .rateLimit(3)
         .build()
 
     override fun headersBuilder() = super.headersBuilder()
