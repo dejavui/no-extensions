@@ -16,6 +16,7 @@ import okhttp3.Request
 import okhttp3.Response
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import rx.Observable
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
@@ -23,11 +24,11 @@ import java.util.TimeZone
 class ZetTruyen : HttpSource() {
     override val name = "ZetTruyen"
     override val lang = "vi"
-    override val baseUrl = "https://www.zettruyen.one"
+    override val baseUrl = "https://www.zettruyen.club"
     override val supportsLatest = true
 
     override val client = network.client.newBuilder()
-        .rateLimit(5)
+        .rateLimit(3)
         .build()
 
     override fun headersBuilder() = super.headersBuilder()
@@ -109,7 +110,6 @@ class ZetTruyen : HttpSource() {
     override fun getFilterList() = getFilters()
 
     // ============================== Details ===============================
-    override fun mangaDetailsRequest(manga: SManga) = GET(baseUrl + manga.url, headers)
 
     override fun mangaDetailsParse(response: Response): SManga {
         val document = response.asJsoup()
@@ -119,7 +119,7 @@ class ZetTruyen : HttpSource() {
             author = document.getInfoValue("Tác giả")
             status = parseStatus(document.getInfoValue("Trạng thái"))
             genre = document.getGenres()
-            description = document.selectFirst("p.comic-content")?.text()
+            description = document.selectFirst("p.comic-content")?.wholeText()?.trim()
         }
     }
 
@@ -146,58 +146,61 @@ class ZetTruyen : HttpSource() {
     }
 
     // ============================== Chapters ==============================
-    override fun fetchChapterList(manga: SManga): rx.Observable<List<SChapter>> = rx.Observable.fromCallable {
+    override fun fetchChapterList(manga: SManga): Observable<List<SChapter>> = Observable.fromCallable {
         val allChapters = mutableListOf<SChapter>()
-        val slug = (baseUrl + manga.url).toHttpUrl().pathSegments[1]
-
         var currentPage = 1
-        var lastPage = 1
+        var lastPage: Int
 
         do {
-            val apiUrl = "$baseUrl/api/comics/$slug/chapters".toHttpUrl().newBuilder()
-                .addQueryParameter("page", currentPage.toString())
-                .addQueryParameter("per_page", "100")
-                .addQueryParameter("order", "desc")
-                .build()
-
-            val apiHeaders = headers.newBuilder()
-                .add("Accept", "application/json")
-                .build()
-
-            val request = GET(apiUrl, apiHeaders)
-
-            val response = client.newCall(request).execute()
+            val response = client.newCall(chapterListRequest(manga, currentPage)).execute()
             val result = response.parseAs<ChapterListResponse>()
-            val data = result.data ?: break
 
-            lastPage = data.lastPage
-
-            data.chapters.forEach { chapter ->
-                // API uses 'chapter-X' but website uses 'chuong-X'
-                val chapterSlug = chapter.chapterSlug.replace("chapter-", "chuong-")
-                allChapters.add(
-                    SChapter.create().apply {
-                        url = "/truyen-tranh/$slug/$chapterSlug"
-                        name = chapter.chapterName
-                        date_upload = chapter.updatedAt?.substringBefore(".")
-                            ?.let { apiDateFormat.tryParse(it) }
-                            ?: 0L
-                    },
-                )
-            }
-
+            allChapters.addAll(chapterListParse(response, result))
+            lastPage = result.data?.lastPage ?: 1
             currentPage++
         } while (currentPage <= lastPage)
 
         allChapters
     }
 
-    override fun chapterListRequest(manga: SManga): Request = throw UnsupportedOperationException()
+    override fun chapterListRequest(manga: SManga) = chapterListRequest(manga, 1)
 
-    override fun chapterListParse(response: Response): List<SChapter> = throw UnsupportedOperationException()
+    private fun chapterListRequest(manga: SManga, page: Int): Request {
+        val slug = manga.url.substringAfterLast("/")
+        val apiUrl = "$baseUrl/api/comics/$slug/chapters".toHttpUrl().newBuilder()
+            .addQueryParameter("page", page.toString())
+            .addQueryParameter("per_page", "100")
+            .addQueryParameter("order", "desc")
+            .build()
+        val apiHeaders = headers.newBuilder()
+            .add("Accept", "application/json")
+            .build()
+
+        return GET(apiUrl, apiHeaders)
+    }
+
+    override fun chapterListParse(response: Response): List<SChapter> {
+        val result = response.parseAs<ChapterListResponse>()
+        return chapterListParse(response, result)
+    }
+
+    private fun chapterListParse(response: Response, result: ChapterListResponse): List<SChapter> {
+        val data = result.data ?: return emptyList()
+        val slug = response.request.url.pathSegments.let { it[it.size - 2] }
+
+        return data.chapters.map { chapter ->
+            val chapterSlug = chapter.chapterSlug.replace("chapter-", "chuong-")
+            SChapter.create().apply {
+                url = "/truyen-tranh/$slug/$chapterSlug"
+                name = chapter.chapterName
+                date_upload = chapter.updatedAt?.substringBefore(".")
+                    ?.let { apiDateFormat.tryParse(it) }
+                    ?: 0L
+            }
+        }
+    }
 
     // ============================== Pages =================================
-    override fun pageListRequest(chapter: SChapter) = GET(baseUrl + chapter.url, headers)
 
     override fun pageListParse(response: Response): List<Page> {
         val document = response.asJsoup()
