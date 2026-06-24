@@ -1,5 +1,5 @@
 ext {
-    extName = 'CBHentai'
+    extName = 'HentaiCB'
     extClass = '.HentaiCB'
     themePkg = 'madara'
     baseUrl = 'https://2tencb.pro'
