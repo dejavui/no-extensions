@@ -136,7 +136,7 @@ class TruyenGG :
     }
 
     private fun parseStatus(status: String?): Int {
-        val ongoingWords = listOf("Đang Cập Nhật", "Đang Tiến Hành", "Còn tiếp")
+        val ongoingWords = listOf("Đang Cập Nhật", "Đang Tiến Hành", "Còn tiếp", "Đang ra")
         val completedWords = listOf("Hoàn Thành", "Đã Hoàn Thành", "Hoàn")
         val hiatusWords = listOf("Tạm ngưng", "Tạm hoãn", "Bị drop")
         return when {
