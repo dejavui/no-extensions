@@ -174,7 +174,7 @@ class NetTruyen0209 :
     private fun getPrefBaseUrl(): String = preferences.getString(PREF_CUSTOM_DOMAIN, DEFAULT_DOMAIN)!!.removeSuffix("/")
 
     companion object {
-        private const val DEFAULT_DOMAIN = "https://nettruyen11s.com"
+        private const val DEFAULT_DOMAIN = "https://nettruyen12s.com"
         private const val PREF_DEFAULT_BASE_URL = "pref_default_base_url"
         private const val PREF_BASE_URL = "pref_base_url"
         private const val PREF_CUSTOM_DOMAIN = "pref_custom_domain"
