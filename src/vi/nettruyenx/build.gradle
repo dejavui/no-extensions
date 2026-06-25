@@ -3,7 +3,7 @@ ext {
     extClass = '.NetTruyenX'
     themePkg = 'wpcomics'
     baseUrl = 'https://nettruyenx.net'
-    overrideVersionCode = 0
+    overrideVersionCode = 1
     isNsfw = false
 }
 
