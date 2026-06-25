@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-git config --global user.email "62763969+github-actions[bot]@users.noreply.github.com"
+git config --global user.email "62763969+dejavui@users.noreply.github.com"
 git config --global user.name "github-actions[bot]"
 git status
 if [ -n "$(git status --porcelain)" ]; then
