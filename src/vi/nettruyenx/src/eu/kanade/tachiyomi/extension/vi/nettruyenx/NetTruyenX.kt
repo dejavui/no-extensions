@@ -58,7 +58,7 @@ class NetTruyenX :
         @SerialName("chapter_slug")val chapterSlug: String,
         @SerialName("updated_at") val updatedAt: String,
 
-        )
+    )
     override fun chapterListParse(response: Response): List<SChapter> {
         val json = response.parseAs<ChapterDTO>()
         val slug = response.request.url.queryParameter("slug")!!
