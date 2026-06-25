@@ -42,7 +42,7 @@ class NetTruyenViet :
     override val supportsLatest = true
 
     override val client = network.client.newBuilder()
-        .rateLimit(5)
+        .rateLimit(3)
         .build()
 
     private val preferences: SharedPreferences = getPreferences()
@@ -102,7 +102,7 @@ class NetTruyenViet :
     // ============================== Latest ================================
 
     override fun latestUpdatesRequest(page: Int): Request {
-        val url = "$baseUrl/".toHttpUrl().newBuilder()
+        val url = "$baseUrl/truyen-tranh-moi".toHttpUrl().newBuilder()
             .addQueryParameter("page", page.toString())
             .build()
         return GET(url, headers)
@@ -172,13 +172,8 @@ class NetTruyenViet :
                         .ifEmpty { absUrl("data-src") }
                 }
                 ?.takeUnless { it.isBlank() }
-            description = infoElement.selectFirst("div.detail-content div.shortened, div.detail-content")
-                ?.clone()
-                ?.apply {
-                    select("h2.list-title, a.morelink, script, style").remove()
-                }
-                ?.text()
-                ?.takeUnless { it.isBlank() }
+            description = infoElement.select("div.detail-content div.shortened")
+                .flatMap { it.children() }.joinToString("\n\n") { it.wholeText().trim() }
         }
     }
 
