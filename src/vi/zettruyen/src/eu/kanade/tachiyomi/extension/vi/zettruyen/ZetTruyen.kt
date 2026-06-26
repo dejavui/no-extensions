@@ -41,11 +41,11 @@ class ZetTruyen : HttpSource() {
     }
 
     // ============================== Popular ===============================
-    override fun popularMangaRequest(page: Int) = buildSearchRequest(page, "", FilterList(), "rating")
+    override fun popularMangaRequest(page: Int) = searchMangaRequest(page, "", FilterList(SortFilter().apply { state = 1 }))
 
     override fun popularMangaParse(response: Response): MangasPage {
         val document = response.asJsoup()
-        val mangas = document.select(mangaListSelector()).map { mangaFromElement(it) }
+        val mangas = document.select(mangaListSelector()).map(::mangaFromElement)
         return MangasPage(mangas, mangas.isNotEmpty())
     }
 
@@ -58,51 +58,35 @@ class ZetTruyen : HttpSource() {
     }
 
     // ============================== Latest ================================
-    override fun latestUpdatesRequest(page: Int) = buildSearchRequest(page, "", FilterList(), "latest")
+    override fun latestUpdatesRequest(page: Int) = searchMangaRequest(page, "", FilterList())
 
     override fun latestUpdatesParse(response: Response) = popularMangaParse(response)
 
     // ============================== Search ================================
-    private fun buildSearchRequest(page: Int, query: String, filters: FilterList, defaultSort: String): Request {
-        var sortValue = defaultSort
-        var statusValue = "all"
-        var typeValue = "all"
-        val genreValues = mutableListOf<String>()
+    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
+        val url = "$baseUrl/tim-kiem-nang-cao".toHttpUrl().newBuilder().apply {
+            if (query.isNotBlank()) addQueryParameter("name", query)
+            addQueryParameter("page", page.toString())
 
-        filters.forEach { filter ->
-            when (filter) {
-                is SortFilter -> sortValue = filter.toUriPart()
-
-                is StatusFilter -> statusValue = filter.toUriPart()
-
-                is TypeFilter -> typeValue = filter.toUriPart()
-
-                is GenreFilter -> {
-                    filter.state.forEach { genre ->
-                        if (genre.state) {
-                            genreValues.add(genre.id)
-                        }
+            filters.forEach { filter ->
+                when (filter) {
+                    is SortFilter -> setQueryParameter("sort", filter.toUriPart())
+                    is StatusFilter -> setQueryParameter("status", filter.toUriPart())
+                    is TypeFilter -> setQueryParameter("type", filter.toUriPart())
+                    is ChapterFilter -> setQueryParameter("chapterRange", filter.toUriPart())
+                    is GenreFilter -> {
+                        val genres = filter.state
+                            .filter { it.state }
+                            .joinToString(",") { it.id }
+                        setQueryParameter("genres", genres)
                     }
+                    else -> {}
                 }
-
-                else -> {}
             }
-        }
-
-        val url = "$baseUrl/tim-kiem-nang-cao".toHttpUrl().newBuilder()
-            .addQueryParameter("genres", genreValues.joinToString(","))
-            .addQueryParameter("status", statusValue)
-            .addQueryParameter("type", typeValue)
-            .addQueryParameter("sort", sortValue)
-            .addQueryParameter("chapterRange", "all")
-            .addQueryParameter("name", query)
-            .addQueryParameter("page", page.toString())
-            .build()
+        }.build()
 
         return GET(url, headers)
     }
-
-    override fun searchMangaRequest(page: Int, query: String, filters: FilterList) = buildSearchRequest(page, query, filters, "latest")
 
     override fun searchMangaParse(response: Response) = popularMangaParse(response)
 
