@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "HentaiCB"
-    className = ".HentaiCB"
+    className = "HentaiCB"
     theme = "madara"
     baseUrl = "https://2tencb.pro"
     versionCode = 30

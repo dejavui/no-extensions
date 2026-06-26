@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "SoaiCaComic"
-    className = ".SoaiCaComic"
+    className = "SoaiCaComic"
     versionCode = 3
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"

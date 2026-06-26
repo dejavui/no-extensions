@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "Truyen tranh dam my"
-    className = ".TruyenTranhDamMy"
+    className = "TruyenTranhDamMy"
     theme = "madara"
     baseUrl = "https://truyentranhdammyy.site"
     versionCode = 3

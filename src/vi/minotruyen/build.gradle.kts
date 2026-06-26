@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "MinoTruyen"
-    className = ".MinoTruyenFactory"
+    className = "MinoTruyenFactory"
     versionCode = 3
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"

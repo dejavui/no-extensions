@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "NHentai"
-    className = ".NHFactory"
+    className = "NHFactory"
     versionCode = 60
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"

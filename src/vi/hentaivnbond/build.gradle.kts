@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "HentaiVNBond"
-    className = ".HentaiVNBond"
+    className = "HentaiVNBond"
     theme = "madara"
     baseUrl = "https://hentaivn.bond"
     versionCode = 1

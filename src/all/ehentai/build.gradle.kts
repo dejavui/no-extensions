@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "E-Hentai"
-    className = ".EHFactory"
+    className = "EHFactory"
     versionCode = 27
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"

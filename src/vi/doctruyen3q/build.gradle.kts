@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "DocTruyen3Q"
-    className = ".DocTruyen3Q"
+    className = "DocTruyen3Q"
     theme = "wpcomics"
     baseUrl = "https://doctruyen3qhub1.com"
     versionCode = 26

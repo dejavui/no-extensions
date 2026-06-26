@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "SayHentai"
-    className = ".SayHentai"
+    className = "SayHentai"
     theme = "manhwaz"
     baseUrl = "https://sayhentai.cx"
     versionCode = 18

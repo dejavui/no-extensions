@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "ViHentai"
-    className = ".ViHentai"
+    className = "ViHentai"
     versionCode = 4
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"

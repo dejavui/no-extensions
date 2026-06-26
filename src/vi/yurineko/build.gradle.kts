@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "YuriNeko"
-    className = ".YuriNeko"
+    className = "YuriNeko"
     versionCode = 6
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"

@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "NetTruyenViet (unoriginal)"
-    className = ".NetTruyenViet"
+    className = "NetTruyenViet"
     versionCode = 3
     contentWarning = ContentWarning.SAFE
     libVersion = "1.4"

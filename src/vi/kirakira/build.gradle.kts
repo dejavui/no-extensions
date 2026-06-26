@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "KiraKira"
-    className = ".KiraKira"
+    className = "KiraKira"
     versionCode = 2
     contentWarning = ContentWarning.SAFE
     libVersion = "1.4"

@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "TruyenVN"
-    className = ".TruyenVN"
+    className = "TruyenVN"
     theme = "madara"
     baseUrl = "https://truyenvn.sbs"
     versionCode = 17

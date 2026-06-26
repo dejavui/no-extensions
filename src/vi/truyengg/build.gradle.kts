@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "FoxTruyen"
-    className = ".TruyenGG"
+    className = "TruyenGG"
     versionCode = 13
     contentWarning = ContentWarning.SAFE
     libVersion = "1.4"

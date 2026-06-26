@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "DocTruyen5s"
-    className = ".DocTruyen5s"
+    className = "DocTruyen5s"
     theme = "liliana"
     baseUrl = "https://manga.io.vn"
     versionCode = 4

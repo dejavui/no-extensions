@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "Top Truyen"
-    className = ".TopTruyen"
+    className = "TopTruyen"
     theme = "wpcomics"
     baseUrl = "https://www.toptruyenzone4.com"
     versionCode = 29

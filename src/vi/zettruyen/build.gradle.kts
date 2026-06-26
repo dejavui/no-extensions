@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "ZetTruyen"
-    className = ".ZetTruyen"
+    className = "ZetTruyen"
     versionCode = 10
     contentWarning = ContentWarning.SAFE
     libVersion = "1.4"

@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "Hitomi"
-    className = ".HitomiFactory"
+    className = "HitomiFactory"
     versionCode = 41
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"

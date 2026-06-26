@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "LoppyToon"
-    className = ".LoppyToon"
+    className = "LoppyToon"
     versionCode = 5
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"

@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "UmeTruyen"
-    className = ".UmeTruyen"
+    className = "UmeTruyen"
     theme = "manhwaz"
     baseUrl = "https://umetruyenz.org"
     versionCode = 4

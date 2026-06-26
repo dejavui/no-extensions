@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "ThienThaiTruyen"
-    className = ".ThienThaiTruyen"
+    className = "ThienThaiTruyen"
     versionCode = 4
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"

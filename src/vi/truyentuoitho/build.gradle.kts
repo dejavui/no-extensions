@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "TruyenTuoiTho"
-    className = ".TruyenTuoiTho"
+    className = "TruyenTuoiTho"
     theme = "madara"
     baseUrl = "https://truyentuoitho.online"
     versionCode = 3

@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "YuriGarden"
-    className = ".YuriGarden"
+    className = "YuriGarden"
     versionCode = 9
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"

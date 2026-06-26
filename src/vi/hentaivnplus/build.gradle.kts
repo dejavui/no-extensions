@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "HentaiVN.plus"
-    className = ".HentaiVNPlus"
+    className = "HentaiVNPlus"
     theme = "madara"
     baseUrl = "https://hentaivn.show"
     versionCode = 18

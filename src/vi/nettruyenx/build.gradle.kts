@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "NetTruyenX (unoriginal)"
-    className = ".NetTruyenX"
+    className = "NetTruyenX"
     theme = "wpcomics"
     baseUrl = "https://nettruyenx.net"
     versionCode = 1
