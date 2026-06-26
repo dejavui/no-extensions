@@ -1,9 +1,0 @@
-ext {
-    extName = 'NetTruyen0209'
-    extClass = '.NetTruyen0209'
-    themePkg = 'wpcomics'
-    baseUrl = 'https://nettruyen12s.com'
-    overrideVersionCode = 3
-}
-
-apply plugin: "kei.plugins.extension.legacy"
