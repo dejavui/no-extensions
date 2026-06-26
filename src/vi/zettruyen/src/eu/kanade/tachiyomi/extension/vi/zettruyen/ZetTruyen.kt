@@ -58,7 +58,7 @@ class ZetTruyen : HttpSource() {
     }
 
     // ============================== Latest ================================
-    override fun latestUpdatesRequest(page: Int) = searchMangaRequest(page, "", FilterList())
+    override fun latestUpdatesRequest(page: Int) = searchMangaRequest(page, "", FilterList(SortFilter().apply { state = 0 }))
 
     override fun latestUpdatesParse(response: Response) = popularMangaParse(response)
 
