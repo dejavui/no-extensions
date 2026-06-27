@@ -154,7 +154,7 @@ open class NHentai(
     override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> {
         if (query.startsWith("https://")) {
             val url = query.toHttpUrlOrNull()
-            if (url != null && url.host == "nhentai.net" && url.pathSegments.getOrNull(0) == "g") {
+            if (url != null && url.host == baseUrl.toHttpUrl().host && url.pathSegments.getOrNull(0) == "g") {
                 val id = url.pathSegments.getOrNull(1) ?: return Observable.just(MangasPage(emptyList(), false))
                 return fetchSearchManga(page, "$PREFIX_ID_SEARCH$id", filters)
             }
@@ -413,7 +413,7 @@ open class NHentai(
             val request = chain.request()
             val url = request.url
 
-            if (url.host != NHENTAI_HOST || !API_PATH_REGEX.matches(url.encodedPath)) {
+            if (url.host != baseUrlHost || !API_PATH_REGEX.matches(url.encodedPath)) {
                 return chain.proceed(request)
             }
 
