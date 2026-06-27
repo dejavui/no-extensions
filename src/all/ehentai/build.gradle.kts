@@ -1,0 +1,18 @@
+import org.gradle.util.Path.path
+
+plugins {
+    alias(kei.plugins.extension)
+}
+
+keiyoushi {
+    name = "E-Hentai"
+    className = "EHFactory"
+    versionCode = 27
+    contentWarning = ContentWarning.NSFW
+    libVersion = "1.4"
+
+    deeplink {
+        host("e-hentai.org")
+        path("/g/..*/..*")
+    }
+}
