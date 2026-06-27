@@ -79,9 +79,9 @@ def get_legacy_lang(ext) -> str:
     if len(ext.sources) == 1:
         source_language = ext.sources[0].language
         if (
-                source_language != lang
-                and source_language not in {"all", "other"}
-                and lang not in {"all", "other"}
+            source_language != lang
+            and source_language not in {"all", "other"}
+            and lang not in {"all", "other"}
         ):
             lang = source_language
     return lang
