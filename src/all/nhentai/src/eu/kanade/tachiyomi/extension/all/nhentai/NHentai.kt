@@ -49,7 +49,8 @@ import kotlin.time.Duration.Companion.seconds
 open class NHentai(
     override val lang: String,
     private val nhLang: String,
-) : HttpSource(), ConfigurableSource {
+) : HttpSource(),
+    ConfigurableSource {
 
     override val name = "NHentai"
 
@@ -224,8 +225,7 @@ open class NHentai(
 
     override fun getMangaUrl(manga: SManga) = "$baseUrl${manga.url}"
 
-    override fun mangaDetailsRequest(manga: SManga): Request =
-        searchMangaByIdRequest(manga.url.removeSurrounding("/g/", "/"))
+    override fun mangaDetailsRequest(manga: SManga): Request = searchMangaByIdRequest(manga.url.removeSurrounding("/g/", "/"))
 
     override fun mangaDetailsParse(response: Response): SManga {
         val data = response.parseAs<Hentai>(json)
