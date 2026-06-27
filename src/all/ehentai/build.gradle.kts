@@ -1,5 +1,3 @@
-import org.gradle.util.Path.path
-
 plugins {
     alias(kei.plugins.extension)
 }
