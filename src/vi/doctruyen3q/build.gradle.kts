@@ -6,8 +6,8 @@ keiyoushi {
     name = "DocTruyen3Q"
     className = "DocTruyen3Q"
     theme = "wpcomics"
-    baseUrl = "https://doctruyen3qhub1.com"
-    versionCode = 26
+    baseUrl = "https://doctruyen3qhub2.com"
+    versionCode = 27
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"
 }
