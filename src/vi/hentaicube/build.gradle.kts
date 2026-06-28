@@ -10,8 +10,4 @@ keiyoushi {
     versionCode = 31
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"
-
-    deeplink {
-        path("/read/..*")
-    }
 }
