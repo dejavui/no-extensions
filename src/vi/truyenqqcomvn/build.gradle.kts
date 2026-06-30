@@ -4,7 +4,6 @@ plugins {
 
 keiyoushi {
     name = "TruyenQQ.com.vn"
-    className = "TruyenQQComVN"
     versionCode = 1
     contentWarning = ContentWarning.SAFE
     libVersion = "1.4"

@@ -12,7 +12,7 @@ keiyoushi {
     source {
         lang = "vi"
         baseUrl("https://nettruyen12s.com") {
-            withCustom.set(true)
+            withCustom = true
         }
     }
 }
