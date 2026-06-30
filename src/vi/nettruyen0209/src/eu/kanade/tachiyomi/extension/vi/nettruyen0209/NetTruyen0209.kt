@@ -23,10 +23,8 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 @Source
-abstract class NetTruyen0209 :
-    WPComics() {
+abstract class NetTruyen0209 : WPComics() {
     override val dateFormat = SimpleDateFormat("HH:mm dd-MM-yyyy", Locale.ROOT)
-
 
     override val client: OkHttpClient = network.client.newBuilder()
         .rateLimit(3)
@@ -123,7 +121,6 @@ abstract class NetTruyen0209 :
 
         return GET(url.toString(), headers)
     }
-
 
     companion object {
         private val CHAPTER_ID_REGEX = Regex("""CHAPTER_ID\s*=\s*(\d+)""")
