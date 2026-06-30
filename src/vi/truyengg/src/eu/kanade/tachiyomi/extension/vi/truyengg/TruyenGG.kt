@@ -1,7 +1,6 @@
 package eu.kanade.tachiyomi.extension.vi.truyengg
 
 import eu.kanade.tachiyomi.network.GET
-import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
@@ -24,9 +23,7 @@ import java.util.TimeZone
 import kotlin.time.Duration.Companion.seconds
 
 @Source
-abstract class TruyenGG :
-    HttpSource(),
-    ConfigurableSource {
+abstract class TruyenGG : HttpSource() {
     private val baseUrlHost by lazy { baseUrl.toHttpUrl().host }
 
     override val supportsLatest = true
