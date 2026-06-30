@@ -31,8 +31,6 @@ import java.util.Locale
 abstract class HentaiCB : Madara() {
     override val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale("vi"))
 
-    override val id: Long = 823638192569572166
-
     override val client: OkHttpClient = network.client.newBuilder()
         .followRedirects(false)
         .addInterceptor { chain ->
