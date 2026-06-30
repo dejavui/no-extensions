@@ -12,7 +12,7 @@ keiyoushi {
     source {
         lang = "vi"
         baseUrl("https://truyenqq.com.vn") {
-            withCustom.set(true)
+            withCustom = true
         }
     }
 }
