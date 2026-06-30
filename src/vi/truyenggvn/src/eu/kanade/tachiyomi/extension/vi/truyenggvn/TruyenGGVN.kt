@@ -9,6 +9,7 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.util.asJsoup
+import keiyoushi.annotation.Source
 import keiyoushi.network.rateLimit
 import keiyoushi.utils.tryParse
 import okhttp3.CacheControl
@@ -20,13 +21,8 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
 
-class TruyenGGVN : HttpSource() {
-
-    override val name = "TruyenGGVN"
-
-    override val baseUrl = "https://truyenggvn.com"
-
-    override val lang = "vi"
+@Source
+abstract class TruyenGGVN : HttpSource() {
 
     override val supportsLatest = true
 

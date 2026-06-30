@@ -9,6 +9,7 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
+import keiyoushi.annotation.Source
 import keiyoushi.network.rateLimit
 import keiyoushi.utils.parseAs
 import kotlinx.coroutines.CoroutineScope
@@ -21,17 +22,12 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 
-class OTruyen : HttpSource() {
-
-    override val name: String = "OTruyen"
-
-    override val lang: String = "vi"
+@Source
+abstract class OTruyen : HttpSource() {
 
     override val supportsLatest: Boolean = true
 
     private val domainName = "otruyen"
-
-    override val baseUrl: String = "https://$domainName.cc"
 
     private val domainApi = "${domainName}api.com"
 

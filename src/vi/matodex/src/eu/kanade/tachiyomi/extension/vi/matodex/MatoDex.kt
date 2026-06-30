@@ -7,6 +7,7 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
+import keiyoushi.annotation.Source
 import keiyoushi.network.rateLimit
 import keiyoushi.utils.parseAs
 import okhttp3.Headers
@@ -16,15 +17,10 @@ import okhttp3.Response
 import rx.Observable
 import java.util.Locale
 
-class MatoDex : HttpSource() {
-
-    override val name: String = "MatoDex"
-
-    override val lang: String = "vi"
+@Source
+abstract class MatoDex : HttpSource() {
 
     override val supportsLatest: Boolean = false
-
-    override val baseUrl: String = "https://mato.suicaodex.com"
 
     private val apiUrl = "$baseUrl/api/v1/mato"
 
