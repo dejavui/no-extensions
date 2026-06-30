@@ -6,9 +6,7 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 @Source
-abstract class HentaiVNBond :
-    Madara() {
+abstract class HentaiVNBond : Madara() {
     override val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.ROOT)
     override val mangaSubString = "truyenhentai"
-
 }
