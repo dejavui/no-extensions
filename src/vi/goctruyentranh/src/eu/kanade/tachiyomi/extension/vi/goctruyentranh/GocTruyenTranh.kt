@@ -1,7 +1,6 @@
 package eu.kanade.tachiyomi.extension.vi.goctruyentranh
 
 import eu.kanade.tachiyomi.network.GET
-import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -25,9 +24,7 @@ import java.util.Calendar
 import java.util.Locale
 
 @Source
-abstract class GocTruyenTranh :
-    HttpSource(),
-    ConfigurableSource {
+abstract class GocTruyenTranh : HttpSource() {
 
     override val supportsLatest = true
 
