@@ -22,6 +22,7 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
 import eu.kanade.tachiyomi.source.online.HttpSource
+import keiyoushi.annotation.Source
 import keiyoushi.lib.randomua.addRandomUAPreference
 import keiyoushi.lib.randomua.setRandomUserAgent
 import keiyoushi.network.rateLimit
@@ -46,10 +47,9 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.seconds
 
-open class NHentai(
-    override val lang: String,
-    private val nhLang: String,
-) : HttpSource(),
+@Source
+abstract class NHentai :
+    HttpSource(),
     ConfigurableSource {
 
     override val name = "NHentai"
@@ -58,7 +58,14 @@ open class NHentai(
 
     override val supportsLatest = true
 
-    override val id by lazy { if (lang == "all") 7309872737163460316 else super.id }
+    private val nhLang by lazy {
+        when (lang) {
+            "en" -> "english"
+            "ja" -> "japanese"
+            "zh" -> "chinese"
+            else -> ""
+        }
+    }
 
     private val apiUrl = "$baseUrl/api/v2"
 
