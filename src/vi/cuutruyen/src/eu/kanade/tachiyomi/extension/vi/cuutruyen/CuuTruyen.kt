@@ -1,7 +1,6 @@
 package eu.kanade.tachiyomi.extension.vi.cuutruyen
 
 import android.content.SharedPreferences
-import android.widget.Toast
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.network.GET
@@ -13,6 +12,7 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
+import keiyoushi.annotation.Source
 import keiyoushi.network.rateLimit
 import keiyoushi.utils.getPreferences
 import keiyoushi.utils.parseAs
@@ -23,23 +23,16 @@ import okhttp3.Request
 import okhttp3.Response
 import rx.Observable
 
-class CuuTruyen :
+@Source
+abstract class CuuTruyen :
     HttpSource(),
     ConfigurableSource {
-
-    override val name = "Cuu Truyen"
-
-    override val lang = "vi"
 
     override val supportsLatest = true
 
     private val preferences: SharedPreferences = getPreferences()
 
-    private fun getDomain(): String = preferences.getString(PREF_KEY, DEFAULT_DOMAIN)!!
-
-    override val baseUrl: String = "https://${getDomain()}"
-
-    private val apiUrl: String = "https://${getDomain()}/api/v2"
+    private val apiUrl: String by lazy { "$baseUrl/api/v2" }
 
     override fun headersBuilder() = super.headersBuilder()
         .add("Referer", "$baseUrl/")
@@ -206,26 +199,6 @@ class CuuTruyen :
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         ListPreference(screen.context).apply {
-            title = PREF_TITLE
-            key = PREF_KEY
-            entries = PREF_ENTRIES
-            entryValues = PREF_ENTRIES
-            setDefaultValue(DEFAULT_DOMAIN)
-            summary = getDomain()
-
-            setOnPreferenceChangeListener { _, _ ->
-                Toast
-                    .makeText(
-                        screen.context,
-                        "Khởi động lại Tachiyomi để áp dụng thay đổi.",
-                        Toast.LENGTH_LONG,
-                    )
-                    .show()
-                true
-            }
-        }.let(screen::addPreference)
-
-        ListPreference(screen.context).apply {
             key = "coverQuality"
             title = "Chất lượng ảnh bìa"
             entries = arrayOf("Chất lượng cao", "Di động")
@@ -251,19 +224,8 @@ class CuuTruyen :
         private const val PREFIX_ID_SEARCH = "id:"
         private const val TITLE_CACHE_CAPACITY = 120
         private const val TITLE_CACHE_LOAD_FACTOR = 0.7F
-        private const val PREF_KEY = "domain"
-        private const val DEFAULT_DOMAIN = "cuutruyen.net"
-        private const val PREF_TITLE = "Tên miền"
     }
 }
-
-private val PREF_ENTRIES = arrayOf(
-    "cuutruyen.net",
-    "nettrom.com",
-    "hetcuutruyen.net",
-    "cuutruyenpip7z.site",
-    "cuutruyen5c844.site",
-)
 
 private class TagFilter(tags: List<Tag>) :
     Filter.Group<Tag>(

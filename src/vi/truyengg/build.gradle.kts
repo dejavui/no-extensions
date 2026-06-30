@@ -8,4 +8,11 @@ keiyoushi {
     versionCode = 13
     contentWarning = ContentWarning.SAFE
     libVersion = "1.4"
+
+    source {
+        lang = "vi"
+        baseUrl("https://foxtruyen2.com") {
+            withCustom.set(true)
+        }
+    }
 }

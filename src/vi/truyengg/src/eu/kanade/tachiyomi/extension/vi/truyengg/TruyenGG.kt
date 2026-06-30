@@ -14,6 +14,7 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.util.asJsoup
+import keiyoushi.annotation.Source
 import keiyoushi.network.rateLimit
 import keiyoushi.utils.getPreferences
 import keiyoushi.utils.tryParse
@@ -27,33 +28,15 @@ import java.util.Locale
 import java.util.TimeZone
 import kotlin.time.Duration.Companion.seconds
 
-class TruyenGG :
+@Source
+abstract class TruyenGG :
     HttpSource(),
     ConfigurableSource {
     private val baseUrlHost by lazy { baseUrl.toHttpUrl().host }
 
-    override val name = "FoxTruyen"
-
-    override val lang = "vi"
-
-    private val defaultBaseUrl = "https://foxtruyen2.com"
-
     override val supportsLatest = true
 
-    private val preferences: SharedPreferences = getPreferences {
-        getString(BASE_URL_PREF, null).let { prefDefaultBaseUrl ->
-            if (prefDefaultBaseUrl != defaultBaseUrl) {
-                edit()
-                    .putString(BASE_URL_PREF, defaultBaseUrl)
-                    .putString(DEFAULT_BASE_URL_PREF, defaultBaseUrl)
-                    .apply()
-            }
-        }
-    }
-
-    override val baseUrl get() = getPrefBaseUrl()
-
-    override val id: Long = 1458993267006200127
+    private val preferences: SharedPreferences = getPreferences()
 
     override val client: OkHttpClient = network.client.newBuilder()
         .rateLimit(1, 2.seconds) { it.host == baseUrlHost }
@@ -275,33 +258,4 @@ class TruyenGG :
         Genre("Xuyên Không", "75"),
         Genre("Yuri", "76"),
     )
-
-    // Preferences
-
-    override fun setupPreferenceScreen(screen: PreferenceScreen) {
-        EditTextPreference(screen.context).apply {
-            key = BASE_URL_PREF
-            title = BASE_URL_PREF_TITLE
-            summary = BASE_URL_PREF_SUMMARY
-            setDefaultValue(defaultBaseUrl)
-            dialogTitle = BASE_URL_PREF_TITLE
-            dialogMessage = "Default: $defaultBaseUrl"
-
-            setOnPreferenceChangeListener { _, _ ->
-                Toast.makeText(screen.context, NOTIFICATION_SHOW, Toast.LENGTH_LONG).show()
-                true
-            }
-        }.let(screen::addPreference)
-    }
-
-    private fun getPrefBaseUrl(): String = preferences.getString(BASE_URL_PREF, defaultBaseUrl)!!
-
-    companion object {
-        private const val DEFAULT_BASE_URL_PREF = "defaultBaseUrl"
-        private const val NOTIFICATION_SHOW = "Tên miền đã được thay đổi."
-        private const val BASE_URL_PREF_TITLE = "Ghi đè URL cơ sở"
-        private const val BASE_URL_PREF = "overrideBaseUrl"
-        private const val BASE_URL_PREF_SUMMARY =
-            "Dành cho sử dụng tạm thời, cập nhật tiện ích sẽ xóa cài đặt."
-    }
 }
