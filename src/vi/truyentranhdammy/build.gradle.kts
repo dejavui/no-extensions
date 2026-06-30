@@ -4,10 +4,14 @@ plugins {
 
 keiyoushi {
     name = "Truyen tranh dam my"
-    className = "TruyenTranhDamMy"
-    theme = "madara"
-    baseUrl = "https://truyentranhdammyy.site"
     versionCode = 3
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"
+    theme = "madara"
+
+    source {
+        name = "Truyện tranh đam mỹ"
+        lang = "vi"
+        baseUrl = "https://truyentranhdammyy.site"
+    }
 }
