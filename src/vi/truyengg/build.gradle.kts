@@ -14,5 +14,6 @@ keiyoushi {
         baseUrl("https://foxtruyen2.com") {
             withCustom.set(true)
         }
+        id = 1458993267006200127
     }
 }

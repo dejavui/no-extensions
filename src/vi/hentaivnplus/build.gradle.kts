@@ -4,10 +4,15 @@ plugins {
 
 keiyoushi {
     name = "HentaiVN.plus"
-    className = "HentaiVNPlus"
-    theme = "madara"
-    baseUrl = "https://hentaivn.show"
     versionCode = 18
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"
+    theme = "madara"
+
+    source {
+        lang = "vi"
+        baseUrl("https://hentaivn.show") {
+            withCustom = true
+        }
+    }
 }
