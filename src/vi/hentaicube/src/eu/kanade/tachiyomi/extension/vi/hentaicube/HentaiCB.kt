@@ -14,6 +14,7 @@ import keiyoushi.annotation.Source
 import keiyoushi.network.rateLimit
 import keiyoushi.utils.getPreferences
 import keiyoushi.utils.parseAs
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
@@ -173,31 +174,33 @@ abstract class HentaiCB : Madara() {
             ?: return super.pageListParse(document).distinctBy { it.imageUrl }
 
         val chapterUrl = document.location()
+
         val challengeHeader = headers.newBuilder()
             .set("Referer", chapterUrl)
             .set("Accept", "application/json")
             .build()
+
         val challenge = client.newCall(GET("$baseUrl/wp-json/manga-reader/v1/challenge", challengeHeader)).execute()
             .parseAs<ChallengeDto>()
-        val apiHeaders = headers.newBuilder()
-            .set("Referer", chapterUrl)
-            .set("Accept", "application/json")
-            .set("X-Masr-Nonce", challenge.nonce)
-            .set("X-Masr-Session", challenge.session)
-            .build()
 
         val imageUrls = mutableListOf<String>()
-        var offset = 0
-        val limit = 7
-        while (true) {
-            val response = client.newCall(GET("$baseUrl/wp-json/manga-reader/v1/images?offset=$offset&limit=$limit", apiHeaders)).execute()
-            val data = response.parseAs<SecureReaderDto>()
-            imageUrls.addAll(data.images)
+        var currentToken: String? = challenge.token
 
-            if (imageUrls.size >= data.count || data.images.isEmpty()) {
+        while (currentToken != null) {
+            val apiHeaders = headers.newBuilder()
+                .set("Referer", chapterUrl)
+                .set("Accept", "application/json")
+                .set("X-Masr-Session", challenge.session)
+                .build()
+
+            val response = client.newCall(GET("$baseUrl/wp-json/manga-reader/v1/pages?token=$currentToken", apiHeaders)).execute()
+            val data = response.parseAs<PagesDto>()
+            imageUrls.addAll(data.items)
+
+            if (data.done || data.items.size < 7 || data.nextToken == null) {
                 break
             }
-            offset += limit
+            currentToken = data.nextToken
         }
 
         return imageUrls.mapIndexed { index, imageUrl ->
@@ -209,12 +212,14 @@ abstract class HentaiCB : Madara() {
     class ChallengeDto(
         val nonce: String,
         val session: String,
+        val token: String,
     )
 
     @Serializable
-    class SecureReaderDto(
-        val count: Int,
-        val images: List<String>,
+    class PagesDto(
+        val items: List<String> = emptyList(),
+        val done: Boolean,
+        @SerialName("next_token") val nextToken: String? = null,
     )
 
     companion object {
