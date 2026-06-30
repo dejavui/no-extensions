@@ -110,7 +110,7 @@ abstract class GocTruyenTranhVui :
         if (query.startsWith("https://")) {
             val url = query.toHttpUrl()
             val baseHost = baseUrl.toHttpUrl().host
-            if (url.host != baseHost ) {
+            if (url.host != baseHost) {
                 throw Exception("Tên miền không được hỗ trợ")
             }
 
