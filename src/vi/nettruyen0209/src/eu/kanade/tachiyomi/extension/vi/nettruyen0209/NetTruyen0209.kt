@@ -1,20 +1,15 @@
 package eu.kanade.tachiyomi.extension.vi.nettruyen0209
 
-import android.content.SharedPreferences
-import android.widget.Toast
-import androidx.preference.EditTextPreference
-import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.multisrc.wpcomics.WPComics
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.network.asObservableSuccess
-import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.util.asJsoup
+import keiyoushi.annotation.Source
 import keiyoushi.network.rateLimit
-import keiyoushi.utils.getPreferences
 import keiyoushi.utils.parseAs
 import kotlinx.serialization.Serializable
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -27,28 +22,11 @@ import rx.Observable
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-class NetTruyen0209 :
-    WPComics(
-        "NetTruyen0209",
-        DEFAULT_DOMAIN,
-        "vi",
-        dateFormat = SimpleDateFormat("HH:mm dd-MM-yyyy", Locale.ROOT),
-        gmtOffset = null,
-    ),
-    ConfigurableSource {
+@Source
+abstract class NetTruyen0209 :
+    WPComics() {
+    override val dateFormat = SimpleDateFormat("HH:mm dd-MM-yyyy", Locale.ROOT)
 
-    private val preferences: SharedPreferences = getPreferences {
-        getString(PREF_DEFAULT_BASE_URL, null).let { prefDefaultBaseUrl ->
-            if (prefDefaultBaseUrl != DEFAULT_DOMAIN) {
-                edit()
-                    .putString(PREF_BASE_URL, DEFAULT_DOMAIN)
-                    .putString(PREF_DEFAULT_BASE_URL, DEFAULT_DOMAIN)
-                    .apply()
-            }
-        }
-    }
-
-    override val baseUrl: String get() = getPrefBaseUrl()
 
     override val client: OkHttpClient = network.client.newBuilder()
         .rateLimit(3)
@@ -146,38 +124,8 @@ class NetTruyen0209 :
         return GET(url.toString(), headers)
     }
 
-    override fun setupPreferenceScreen(screen: PreferenceScreen) {
-        EditTextPreference(screen.context).apply {
-            key = PREF_CUSTOM_DOMAIN
-            title = "Tên miền tùy chỉnh"
-            summary = "Nhập tên miền đầy đủ (ví dụ: $DEFAULT_DOMAIN)"
-            setDefaultValue(DEFAULT_DOMAIN)
-            dialogTitle = "Ghi đè URL cơ sở"
-            dialogMessage = "Default: $DEFAULT_DOMAIN"
-            setOnPreferenceChangeListener { _, newValue ->
-                try {
-                    val inputUrl = newValue as String
-                    if (inputUrl.isNotBlank()) {
-                        inputUrl.toHttpUrl()
-                    }
-                    preferences.edit().putString(PREF_CUSTOM_DOMAIN, inputUrl).apply()
-                    Toast.makeText(screen.context, "Tên miền đã được thay đổi", Toast.LENGTH_LONG).show()
-                    true
-                } catch (e: Exception) {
-                    Toast.makeText(screen.context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
-                    false
-                }
-            }
-        }.let(screen::addPreference)
-    }
-
-    private fun getPrefBaseUrl(): String = preferences.getString(PREF_CUSTOM_DOMAIN, DEFAULT_DOMAIN)!!.removeSuffix("/")
 
     companion object {
-        private const val DEFAULT_DOMAIN = "https://nettruyen12s.com"
-        private const val PREF_DEFAULT_BASE_URL = "pref_default_base_url"
-        private const val PREF_BASE_URL = "pref_base_url"
-        private const val PREF_CUSTOM_DOMAIN = "pref_custom_domain"
         private val CHAPTER_ID_REGEX = Regex("""CHAPTER_ID\s*=\s*(\d+)""")
     }
 }

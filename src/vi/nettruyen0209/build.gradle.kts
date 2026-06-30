@@ -4,10 +4,15 @@ plugins {
 
 keiyoushi {
     name = "NetTruyen0209"
-    className = "NetTruyen0209"
     theme = "wpcomics"
-    baseUrl = "https://nettruyen12s.com"
     versionCode = 3
     contentWarning = ContentWarning.SAFE
     libVersion = "1.4"
+
+    source {
+        lang = "vi"
+        baseUrl("https://nettruyen12s.com") {
+            withCustom.set(true)
+        }
+    }
 }

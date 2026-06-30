@@ -4,10 +4,13 @@ plugins {
 
 keiyoushi {
     name = "NetTruyenCO (unoriginal)"
-    className = "NetTruyenCO"
-    theme = "wpcomics"
-    baseUrl = "https://nettruyenar.com"
     versionCode = 8
     contentWarning = ContentWarning.SAFE
     libVersion = "1.4"
+    theme = "wpcomics"
+
+    source {
+        lang = "vi"
+        baseUrl = "https://nettruyenar.com"
+    }
 }
