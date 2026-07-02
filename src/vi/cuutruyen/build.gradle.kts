@@ -3,7 +3,7 @@ plugins {
 }
 
 keiyoushi {
-    name = "CuuTruyen"
+    name = "Cuu Truyen"
     versionCode = 1
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"
