@@ -4,12 +4,14 @@ plugins {
 
 keiyoushi {
     name = "ZetTruyen"
-    versionCode = 10
+    versionCode = 11
     contentWarning = ContentWarning.SAFE
     libVersion = "1.4"
 
     source {
         lang = "vi"
-        baseUrl = "https://www.zettruyen.fit"
+        baseUrl("https://www.zettruyen.ink") {
+            withCustom = true
+        }
     }
 }

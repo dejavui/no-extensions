@@ -10,6 +10,6 @@ keiyoushi {
 
     source {
         lang = "vi"
-        baseUrl = "https://truyenhentaivn.space"
+        baseUrl = "https://truyenhentaivn.store"
     }
 }

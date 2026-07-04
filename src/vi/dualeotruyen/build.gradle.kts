@@ -11,7 +11,7 @@ keiyoushi {
     source {
         name = "Dưa Leo Truyện"
         lang = "vi"
-        baseUrl("https://dualeotruyendc.com") {
+        baseUrl("https://dualeotruyenhn.com") {
             withCustom = true
         }
     }

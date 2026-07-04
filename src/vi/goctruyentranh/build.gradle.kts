@@ -5,7 +5,7 @@ plugins {
 keiyoushi {
     name = "GocTruyenTranh"
     versionCode = 12
-    contentWarning = ContentWarning.NSFW
+    contentWarning = ContentWarning.MIXED
     libVersion = "1.4"
 
     source {
