@@ -76,8 +76,6 @@ abstract class Hitomi : HttpSource() {
 
     private val cdnDomain = "gold-usergeneratedcontent.net"
 
-    override val baseUrl = "https://hitomi.la"
-
     private val ltnUrl = "https://ltn.$cdnDomain"
 
     override val supportsLatest = true
