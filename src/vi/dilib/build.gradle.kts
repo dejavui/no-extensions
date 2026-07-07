@@ -4,7 +4,7 @@ plugins {
 
 keiyoushi {
     name = "Dilib"
-    versionCode = 1
+    versionCode = 2
     contentWarning = ContentWarning.SAFE
     libVersion = "1.4"
 
@@ -14,4 +14,8 @@ keiyoushi {
             withCustom = true
         }
     }
+}
+
+dependencies {
+    implementation(project(":lib:randomua"))
 }
