@@ -52,10 +52,6 @@ abstract class NHentai :
     HttpSource(),
     ConfigurableSource {
 
-    override val name = "NHentai"
-
-    override val baseUrl = "https://nhentai.net"
-
     override val supportsLatest = true
 
     private val nhLang by lazy {
