@@ -178,7 +178,7 @@ abstract class HentaiCB : Madara() {
             .set("Accept", "application/json")
             .build()
 
-        val challenge = client.newCall(GET("$baseUrl/wp-json/manga-reader/v1/challenge", challengeHeader)).execute()
+        var challenge = client.newCall(GET("$baseUrl/wp-json/manga-reader/v1/challenge", challengeHeader)).execute()
             .parseAs<ChallengeDto>()
 
         val imageUrls = mutableListOf<String>()
@@ -195,10 +195,17 @@ abstract class HentaiCB : Madara() {
             val data = response.parseAs<PagesDto>()
             imageUrls.addAll(data.items)
 
-            if (data.done || data.items.size < 5 || data.nextToken == null) {
+            if (data.done) {
                 break
             }
+
             currentToken = data.nextToken
+
+            if (currentToken == null && data.protocolPolicy?.action == "refresh_challenge") {
+                val challengeResponse = client.newCall(GET("$baseUrl/wp-json/manga-reader/v1/challenge?from_session=${challenge.session}", challengeHeader)).execute()
+                challenge = challengeResponse.parseAs<ChallengeDto>()
+                currentToken = challenge.token
+            }
         }
 
         return imageUrls.mapIndexed { index, imageUrl ->
@@ -218,6 +225,12 @@ abstract class HentaiCB : Madara() {
         val items: List<String> = emptyList(),
         val done: Boolean,
         @SerialName("next_token") val nextToken: String? = null,
+        @SerialName("protocol_policy") val protocolPolicy: ProtocolPolicyDto? = null,
+    )
+
+    @Serializable
+    class ProtocolPolicyDto(
+        val action: String? = null,
     )
 
     companion object {
