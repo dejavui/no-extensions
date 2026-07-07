@@ -195,7 +195,7 @@ abstract class HentaiCB : Madara() {
             val data = response.parseAs<PagesDto>()
             imageUrls.addAll(data.items)
 
-            if (data.done || data.items.size < 7 || data.nextToken == null) {
+            if (data.done || data.items.size < 5 || data.nextToken == null) {
                 break
             }
             currentToken = data.nextToken

@@ -8,25 +8,18 @@ keiyoushi {
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"
 
-    source {
-        lang = "en"
-        baseUrl = "https://nhentai.net"
-    }
+    val languages = listOf(
+        "all", "en", "zh", "ja"
+    )
 
-    source {
-        lang = "ja"
-        baseUrl = "https://nhentai.net"
-    }
-
-    source {
-        lang = "zh"
-        baseUrl = "https://nhentai.net"
-    }
-
-    source {
-        lang = "all"
-        baseUrl = "https://nhentai.net"
-        id = 7309872737163460316
+    languages.forEach {
+        source {
+            lang = it
+            baseUrl = "https://nhentai.net"
+            if (it == "all") {
+                id = 7309872737163460316L
+            }
+        }
     }
 
     deeplink {

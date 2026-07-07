@@ -14,7 +14,7 @@ keiyoushi {
         baseUrl("https://2tencb.pro") {
             withCustom = true
         }
-        id = 823638192569572166
+        id = 823638192569572166L
     }
 
     deeplink {

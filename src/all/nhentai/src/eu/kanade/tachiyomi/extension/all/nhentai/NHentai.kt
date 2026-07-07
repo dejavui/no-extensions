@@ -65,8 +65,6 @@ abstract class NHentai :
 
     private val apiUrl = "$baseUrl/api/v2"
 
-    private val baseUrlHost by lazy { baseUrl.toHttpUrl().host }
-
     private val json: Json by injectLazy()
 
     private val preferences: SharedPreferences by getPreferencesLazy()
@@ -91,7 +89,7 @@ abstract class NHentai :
             .addInterceptor(NhApiRetryInterceptor())
             .addNetworkInterceptor(NhGalleryCacheInterceptor())
             .addNetworkInterceptor(NhAuthorizationInterceptor())
-            .rateLimit(permits, period.seconds) { it.host == baseUrlHost }
+            .rateLimit(permits, period.seconds) { it.host == baseUrl.toHttpUrl().host }
             .build()
     }
 
@@ -416,7 +414,7 @@ abstract class NHentai :
             val request = chain.request()
             val url = request.url
 
-            if (url.host != baseUrlHost || !API_PATH_REGEX.matches(url.encodedPath)) {
+            if (url.host != baseUrl.toHttpUrl().host || !API_PATH_REGEX.matches(url.encodedPath)) {
                 return chain.proceed(request)
             }
 

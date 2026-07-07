@@ -42,8 +42,6 @@ import kotlin.time.Duration.Companion.seconds
 @OptIn(ExperimentalUnsignedTypes::class)
 abstract class Hitomi : HttpSource() {
 
-    override val name = "Hitomi"
-
     private val nozomiLang by lazy {
         when (lang) {
             "all" -> "all"

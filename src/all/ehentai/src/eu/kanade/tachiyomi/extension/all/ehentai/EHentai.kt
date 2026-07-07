@@ -39,8 +39,6 @@ abstract class EHentai :
     HttpSource(),
     ConfigurableSource {
 
-    override val name = "E-Hentai"
-
     private val ehLang by lazy {
         when (lang) {
             "ja" -> "japanese"
