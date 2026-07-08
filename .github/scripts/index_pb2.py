@@ -30,19 +30,19 @@ _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'index_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
-    DESCRIPTOR._loaded_options = None
-    _globals['_CONTENTWARNING']._serialized_start=683
-    _globals['_CONTENTWARNING']._serialized_end=811
-    _globals['_INDEX']._serialized_start=16
-    _globals['_INDEX']._serialized_end=187
-    _globals['_CONTACT']._serialized_start=189
-    _globals['_CONTACT']._serialized_end=249
-    _globals['_EXTENSIONLIST']._serialized_start=251
-    _globals['_EXTENSIONLIST']._serialized_end=298
-    _globals['_EXTENSION']._serialized_start=301
-    _globals['_EXTENSION']._serialized_end=509
-    _globals['_RESOURCES']._serialized_start=511
-    _globals['_RESOURCES']._serialized_end=555
-    _globals['_SOURCE']._serialized_start=557
-    _globals['_SOURCE']._serialized_end=680
+  DESCRIPTOR._loaded_options = None
+  _globals['_CONTENTWARNING']._serialized_start=683
+  _globals['_CONTENTWARNING']._serialized_end=811
+  _globals['_INDEX']._serialized_start=16
+  _globals['_INDEX']._serialized_end=187
+  _globals['_CONTACT']._serialized_start=189
+  _globals['_CONTACT']._serialized_end=249
+  _globals['_EXTENSIONLIST']._serialized_start=251
+  _globals['_EXTENSIONLIST']._serialized_end=298
+  _globals['_EXTENSION']._serialized_start=301
+  _globals['_EXTENSION']._serialized_end=509
+  _globals['_RESOURCES']._serialized_start=511
+  _globals['_RESOURCES']._serialized_end=555
+  _globals['_SOURCE']._serialized_start=557
+  _globals['_SOURCE']._serialized_end=680
 # @@protoc_insertion_point(module_scope)
