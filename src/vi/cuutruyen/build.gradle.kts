@@ -10,8 +10,11 @@ keiyoushi {
 
     source {
         lang = "vi"
-        baseUrl("https://cuutruyen.net") {
-            mirrors.add("https://hetcuutruyen.net")
+        baseUrl {
+            mirrors(
+                "https://cuutruyen.net",
+                "https://hetcuutruyen.net",
+            )
         }
     }
 }

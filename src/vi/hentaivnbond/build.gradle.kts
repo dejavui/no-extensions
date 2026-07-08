@@ -11,8 +11,8 @@ keiyoushi {
 
     source {
         lang = "vi"
-        baseUrl("https://hentaivn.cfd") {
-            withCustom = true
+        baseUrl {
+            custom("https://hentaivn.cfd")
         }
     }
 }

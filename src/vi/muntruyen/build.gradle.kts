@@ -5,13 +5,13 @@ plugins {
 keiyoushi {
     name = "MunTruyen"
     versionCode = 4
-    contentWarning = ContentWarning.NSFW
+    contentWarning = ContentWarning.MIXED
     libVersion = "1.4"
 
     source {
         lang = "vi"
-        baseUrl("https://munedge.com") {
-            withCustom = true
+        baseUrl {
+            custom("https://munedge.com")
         }
     }
 }
