@@ -173,64 +173,103 @@ abstract class HentaiCB : Madara() {
 
         val chapterUrl = document.location()
 
-        val challengeHeader = headers.newBuilder()
-            .set("Referer", chapterUrl)
-            .set("Accept", "application/json")
-            .build()
+        // Step 1: Get initial token + session from challenge endpoint
+        var challenge = fetchChallenge(chapterUrl)
+        var token: String? = challenge.token
+        var session = challenge.session
 
-        var challenge = client.newCall(GET("$baseUrl/wp-json/manga-reader/v1/challenge", challengeHeader)).execute()
-            .parseAs<ChallengeDto>()
+        // Step 2: Paginate images using token-based pagination
+        val allImages = mutableListOf<String>()
 
-        val imageUrls = mutableListOf<String>()
-        var currentToken: String? = challenge.token
-
-        while (currentToken != null) {
-            val apiHeaders = headers.newBuilder()
-                .set("Referer", chapterUrl)
-                .set("Accept", "application/json")
-                .set("X-Masr-Session", challenge.session)
+        while (!token.isNullOrEmpty()) {
+            val pagesUrl = baseUrl.toHttpUrl().newBuilder()
+                .addPathSegments("wp-json/manga-reader/v1/pages")
+                .addQueryParameter("token", token)
                 .build()
 
-            val response = client.newCall(GET("$baseUrl/wp-json/manga-reader/v1/pages?token=$currentToken", apiHeaders)).execute()
-            val data = response.parseAs<PagesDto>()
-            imageUrls.addAll(data.items)
+            val pagesRequest = Request.Builder()
+                .url(pagesUrl)
+                .header("Accept", "application/json")
+                .header("Referer", chapterUrl)
+                .header("X-MASR-Session", session)
+                .build()
 
-            if (data.done) {
-                break
-            }
+            val pagesResponse = client.newCall(pagesRequest).execute()
+            val pages = pagesResponse.parseAs<PagesResponse>()
 
-            currentToken = data.nextToken
+            if (pages.items.isEmpty()) break
 
-            if (currentToken == null && data.protocolPolicy?.action == "refresh_challenge") {
-                val challengeResponse = client.newCall(GET("$baseUrl/wp-json/manga-reader/v1/challenge?from_session=${challenge.session}", challengeHeader)).execute()
-                challenge = challengeResponse.parseAs<ChallengeDto>()
-                currentToken = challenge.token
+            allImages += pages.items
+
+            // Update session if server returns a new one
+            pages.session?.let { session = it }
+
+            // Handle protocol_policy.action (matches masr-reader.js behavior)
+            val protocolPolicy = pages.protocolPolicy
+            when (protocolPolicy?.action) {
+                "refresh_challenge" -> {
+                    val txn = protocolPolicy.transaction
+                    challenge = fetchChallenge(chapterUrl, session, txn)
+                    token = challenge.token
+                    session = challenge.session
+                    continue
+                }
+                "done" -> break
+                else -> {
+                    // "continue" — use next_token
+                    token = if (pages.done) null else pages.nextToken
+                }
             }
         }
 
-        return imageUrls.mapIndexed { index, imageUrl ->
-            Page(index, chapterUrl, imageUrl)
+        return allImages.mapIndexed { i, imageUrl ->
+            Page(i, chapterUrl, imageUrl)
         }
     }
 
+    private fun fetchChallenge(
+        referer: String,
+        fromSession: String? = null,
+        policyTxn: String? = null,
+    ): ChallengeResponse {
+        val urlBuilder = baseUrl.toHttpUrl().newBuilder()
+            .addPathSegments("wp-json/manga-reader/v1/challenge")
+
+        if (fromSession != null) {
+            urlBuilder.addQueryParameter("from_session", fromSession)
+        }
+        if (policyTxn != null) {
+            urlBuilder.addQueryParameter("policy_txn", policyTxn)
+        }
+
+        val challengeRequest = Request.Builder()
+            .url(urlBuilder.build())
+            .header("Accept", "application/json")
+            .header("Referer", referer)
+            .build()
+
+        return client.newCall(challengeRequest).execute().parseAs()
+    }
+
     @Serializable
-    class ChallengeDto(
-        val nonce: String,
+    class ChallengeResponse(
         val session: String,
         val token: String,
     )
 
     @Serializable
-    class PagesDto(
+    class PagesResponse(
         val items: List<String> = emptyList(),
         val done: Boolean,
         @SerialName("next_token") val nextToken: String? = null,
-        @SerialName("protocol_policy") val protocolPolicy: ProtocolPolicyDto? = null,
+        val session: String? = null,
+        @SerialName("protocol_policy") val protocolPolicy: ProtocolPolicyResponse? = null,
     )
 
     @Serializable
-    class ProtocolPolicyDto(
+    class ProtocolPolicyResponse(
         val action: String? = null,
+        val transaction: String? = null,
     )
 
     companion object {
