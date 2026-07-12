@@ -168,58 +168,35 @@ abstract class HentaiCB : Madara() {
     }
 
     override fun pageListParse(document: Document): List<Page> {
-        document.selectFirst("#manga-secure-reader")
+        val masr2Token = document.selectFirst("#manga-secure-reader")
+            ?.attr("data-masr2-token")
             ?: return super.pageListParse(document).distinctBy { it.imageUrl }
 
         val chapterUrl = document.location()
-
-        // Step 1: Get initial token + session from challenge endpoint
-        var challenge = fetchChallenge(chapterUrl)
-        var token: String? = challenge.token
-        var session = challenge.session
-
-        // Step 2: Paginate images using token-based pagination
+        val clientId = generateClientId()
+        var token: String? = masr2Token
         val allImages = mutableListOf<String>()
 
         while (!token.isNullOrEmpty()) {
             val pagesUrl = baseUrl.toHttpUrl().newBuilder()
-                .addPathSegments("wp-json/manga-reader/v1/pages")
+                .addPathSegments("wp-json/manga-reader/v2/pages")
                 .addQueryParameter("token", token)
+                .addQueryParameter("cid", clientId)
                 .build()
 
-            val pagesRequest = Request.Builder()
-                .url(pagesUrl)
-                .header("Accept", "application/json")
-                .header("Referer", chapterUrl)
-                .header("X-MASR-Session", session)
+            val challengeHeader = headers.newBuilder()
+                .set("Referer", chapterUrl)
+                .set("Accept", "application/json")
                 .build()
 
-            val pagesResponse = client.newCall(pagesRequest).execute()
+            val pagesResponse = client.newCall(GET(pagesUrl, challengeHeader)).execute()
             val pages = pagesResponse.parseAs<PagesResponse>()
 
             if (pages.items.isEmpty()) break
 
             allImages += pages.items
 
-            // Update session if server returns a new one
-            pages.session?.let { session = it }
-
-            // Handle protocol_policy.action (matches masr-reader.js behavior)
-            val protocolPolicy = pages.protocolPolicy
-            when (protocolPolicy?.action) {
-                "refresh_challenge" -> {
-                    val txn = protocolPolicy.transaction
-                    challenge = fetchChallenge(chapterUrl, session, txn)
-                    token = challenge.token
-                    session = challenge.session
-                    continue
-                }
-                "done" -> break
-                else -> {
-                    // "continue" — use next_token
-                    token = if (pages.done) null else pages.nextToken
-                }
-            }
+            token = if (pages.done) null else pages.nextToken
         }
 
         return allImages.mapIndexed { i, imageUrl ->
@@ -227,49 +204,22 @@ abstract class HentaiCB : Madara() {
         }
     }
 
-    private fun fetchChallenge(
-        referer: String,
-        fromSession: String? = null,
-        policyTxn: String? = null,
-    ): ChallengeResponse {
-        val urlBuilder = baseUrl.toHttpUrl().newBuilder()
-            .addPathSegments("wp-json/manga-reader/v1/challenge")
-
-        if (fromSession != null) {
-            urlBuilder.addQueryParameter("from_session", fromSession)
-        }
-        if (policyTxn != null) {
-            urlBuilder.addQueryParameter("policy_txn", policyTxn)
-        }
-
-        val challengeRequest = Request.Builder()
-            .url(urlBuilder.build())
-            .header("Accept", "application/json")
-            .header("Referer", referer)
-            .build()
-
-        return client.newCall(challengeRequest).execute().parseAs()
+    private fun generateClientId(): String {
+        val random = java.security.SecureRandom()
+        val bytes = ByteArray(16)
+        random.nextBytes(bytes)
+        return bytes.joinToString("") { "%02x".format(it) }
     }
 
     @Serializable
-    class ChallengeResponse(
-        val session: String,
-        val token: String,
-    )
-
-    @Serializable
-    class PagesResponse(
-        val items: List<String> = emptyList(),
+    private class PagesResponse(
+        val items: List<String>,
         val done: Boolean,
+        val protocol: Int = 0,
+        val cursor: Int = 0,
+        @SerialName("next_cursor") val nextCursor: Int = 0,
+        val count: Int = 0,
         @SerialName("next_token") val nextToken: String? = null,
-        val session: String? = null,
-        @SerialName("protocol_policy") val protocolPolicy: ProtocolPolicyResponse? = null,
-    )
-
-    @Serializable
-    class ProtocolPolicyResponse(
-        val action: String? = null,
-        val transaction: String? = null,
     )
 
     companion object {
