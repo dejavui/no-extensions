@@ -24,12 +24,17 @@ import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import org.jsoup.select.Elements
 import rx.Observable
+import java.security.SecureRandom
 import java.text.SimpleDateFormat
 import java.util.Locale
+import java.util.TimeZone
+import kotlin.time.Duration.Companion.seconds
 
 @Source
 abstract class HentaiCB : Madara() {
-    override val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale("vi"))
+    override val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.ROOT).apply {
+        timeZone = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
+    }
 
     override val client: OkHttpClient = network.client.newBuilder()
         .followRedirects(false)
@@ -61,7 +66,7 @@ abstract class HentaiCB : Madara() {
             }
             response
         }
-        .rateLimit(3)
+        .rateLimit(1, 2.seconds) { it.host == baseUrl.toHttpUrl().host }
         .build()
 
     private val preferences: SharedPreferences = getPreferences()
@@ -173,11 +178,12 @@ abstract class HentaiCB : Madara() {
             ?: return super.pageListParse(document).distinctBy { it.imageUrl }
 
         val chapterUrl = document.location()
-        val clientId = generateClientId()
+        val clientId = generateClientId() // Fix CID for the entire chapter
         var token: String? = masr2Token
         val allImages = mutableListOf<String>()
+        var retries = 0
 
-        while (!token.isNullOrEmpty()) {
+        while (!token.isNullOrEmpty() && retries < 25) {
             val pagesUrl = baseUrl.toHttpUrl().newBuilder()
                 .addPathSegments("wp-json/manga-reader/v2/pages")
                 .addQueryParameter("token", token)
@@ -189,15 +195,41 @@ abstract class HentaiCB : Madara() {
                 .set("Accept", "application/json")
                 .build()
 
-            val pagesResponse = client.newCall(GET(pagesUrl, challengeHeader)).execute()
-            val pages = pagesResponse.parseAs<PagesResponse>()
+            val pages = try {
+                val response = client.newCall(GET(pagesUrl, challengeHeader)).execute()
+                response.parseAs<PagesResponse>()
+            } catch (e: Exception) {
+                if (retries < 5) {
+                    retries++
+                    continue
+                } else {
+                    throw e
+                }
+            }
 
-            if (pages.items.isEmpty()) break
+            // Handle rate limiting
+            if (pages.code == "too_fast") {
+                retries++
+                continue
+            }
+
+            // Handle session mismatch
+            if (pages.code == "client_mismatch") {
+                // If this happens even with fixed CID, the token might have expired
+                throw Exception("Lỗi phiên đọc (Client Mismatch): ${pages.message}")
+            }
+
+            if (pages.items.isEmpty() && pages.done) break
+            if (pages.items.isEmpty()) {
+                retries++
+                continue
+            }
 
             allImages += pages.items
-
             token = if (pages.done) null else pages.nextToken
         }
+
+        if (allImages.isEmpty()) throw Exception("Không lấy được danh sách ảnh (Server chặn hoặc timeout)")
 
         return allImages.mapIndexed { i, imageUrl ->
             Page(i, chapterUrl, imageUrl)
@@ -205,7 +237,7 @@ abstract class HentaiCB : Madara() {
     }
 
     private fun generateClientId(): String {
-        val random = java.security.SecureRandom()
+        val random = SecureRandom()
         val bytes = ByteArray(16)
         random.nextBytes(bytes)
         return bytes.joinToString("") { "%02x".format(it) }
@@ -213,13 +245,15 @@ abstract class HentaiCB : Madara() {
 
     @Serializable
     private class PagesResponse(
-        val items: List<String>,
-        val done: Boolean,
+        val items: List<String> = emptyList(),
+        val done: Boolean = false,
         val protocol: Int = 0,
         val cursor: Int = 0,
         @SerialName("next_cursor") val nextCursor: Int = 0,
         val count: Int = 0,
         @SerialName("next_token") val nextToken: String? = null,
+        val code: String? = null,
+        val message: String? = null,
     )
 
     companion object {
