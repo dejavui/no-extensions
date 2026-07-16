@@ -1,6 +1,8 @@
 package eu.kanade.tachiyomi.extension.vi.vitruyen
 
 import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.network.await
+import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -12,16 +14,18 @@ import keiyoushi.annotation.Source
 import keiyoushi.network.rateLimit
 import keiyoushi.utils.parseAs
 import keiyoushi.utils.tryParse
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
-import org.jsoup.Jsoup
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
-import kotlin.collections.map
 
 @Source
 abstract class ViTruyen : HttpSource() {
@@ -30,7 +34,7 @@ abstract class ViTruyen : HttpSource() {
 
     override val supportsLatest: Boolean = true
 
-    private val apiUrl = "https://api.vitruyen1.com/api"
+    private val apiUrl = "https://api.vitruyen1.com"
 
     private val dateFormat = SimpleDateFormat("dd/MM/yy", Locale.ROOT).apply {
         timeZone = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
@@ -43,7 +47,15 @@ abstract class ViTruyen : HttpSource() {
     override fun headersBuilder(): Headers.Builder = super.headersBuilder()
         .add("Referer", "$baseUrl/")
 
-    override fun latestUpdatesRequest(page: Int): Request = GET("$apiUrl/next/the-loai/dang-hot?page=$page&sort=latest", headers)
+    // ============================== Popular ===============================
+
+    override fun popularMangaRequest(page: Int): Request = mangaListRequest(page, "dang-hot", "view")
+
+    override fun popularMangaParse(response: Response): MangasPage = latestUpdatesParse(response)
+
+    // =============================== Latest ===============================
+
+    override fun latestUpdatesRequest(page: Int): Request = mangaListRequest(page, "dang-hot", "latest")
 
     override fun latestUpdatesParse(response: Response): MangasPage {
         val res = response.parseAs<Data>()
@@ -60,12 +72,48 @@ abstract class ViTruyen : HttpSource() {
         return MangasPage(manga, hasNextPage)
     }
 
-    override fun popularMangaRequest(page: Int): Request = GET("$apiUrl/next/the-loai/dang-hot?page=$page&sort=view", headers)
+    // =============================== Search ===============================
 
-    override fun popularMangaParse(response: Response) = latestUpdatesParse(response)
+    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
+        if (query.isNotBlank()) {
+            val url = apiUrl.toHttpUrl().newBuilder().apply {
+                addPathSegments("api/next/search-suggestions")
+                addQueryParameter("q", query)
+            }.build()
+
+            return GET(url, headers)
+        }
+
+        val genre = filters.filterIsInstance<GenresFilter>().firstOrNull()?.let {
+            it.values[it.state].slug
+        } ?: "dang-hot"
+
+        val sort = filters.filterIsInstance<SortFilter>().firstOrNull()?.let { it.values[it.state].slug } ?: "latest"
+        val status = filters.filterIsInstance<StatusFilter>().firstOrNull()?.let { it.values[it.state].slug } ?: ""
+
+        return mangaListRequest(page, genre, sort, status)
+    }
+
+    private fun mangaListRequest(page: Int, genre: String, sort: String, status: String = ""): Request {
+        val url = apiUrl.toHttpUrl().newBuilder().apply {
+            addPathSegments("api/next/the-loai")
+            addPathSegment(genre)
+            addQueryParameter("page", page.toString())
+            addQueryParameter("sort", sort)
+            if (status.isNotBlank()) {
+                addQueryParameter("status", status)
+            }
+        }.build()
+
+        return GET(url, headers)
+    }
+
+    override fun searchMangaParse(response: Response): MangasPage = latestUpdatesParse(response)
+
+    // =========================== Manga Details ============================
 
     override fun mangaDetailsParse(response: Response): SManga {
-        val document = Jsoup.parse(response.body.string(), response.request.url.toString())
+        val document = response.asJsoup()
         return SManga.create().apply {
             val hero = document.selectFirst(".v2-detail-hero")!!
             val alternativeName = hero.selectFirst(".mt-4:contains(Tên khác) p")
@@ -92,9 +140,11 @@ abstract class ViTruyen : HttpSource() {
         }
     }
 
+    // ============================== Chapters ==============================
+
     override fun chapterListParse(response: Response): List<SChapter> {
-        val res = response.asJsoup()
-        return res.select(".v2-chapter-list a.v2-chapter-item").map { element ->
+        val document = response.asJsoup()
+        return document.select(".v2-chapter-list a.v2-chapter-item").map { element ->
             SChapter.create().apply {
                 setUrlWithoutDomain(element.absUrl("href"))
                 name = element.select(".v2-chapter-item-title").text()
@@ -118,7 +168,7 @@ abstract class ViTruyen : HttpSource() {
         }
     }
 
-    override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
+    // =============================== Pages ================================
 
     override fun pageListParse(response: Response): List<Page> {
         val document = response.asJsoup()
@@ -134,12 +184,55 @@ abstract class ViTruyen : HttpSource() {
         }
     }
 
-    override fun searchMangaParse(response: Response) = latestUpdatesParse(response)
+    override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
 
-    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
-        val url = "$apiUrl/next/search-suggestions".toHttpUrl().newBuilder().apply {
-            if (query.isNotBlank()) addQueryParameter("q", query)
-        }.build()
-        return GET(url)
+    // ============================== Filters ===============================
+
+    override fun getFilterList(): FilterList {
+        fetchGenres()
+        val filters = mutableListOf<Filter<*>>(
+            Filter.Header("Không dùng chung được với tìm kiếm bằng tên"),
+        )
+        if (genreList.isEmpty()) {
+            filters.add(Filter.Header("Nhấn 'Làm mới' để hiển thị thể loại"))
+        } else {
+            filters.add(GenresFilter(genreList))
+        }
+        filters.add(SortFilter())
+        filters.add(StatusFilter())
+        return FilterList(filters)
     }
+
+    private fun fetchGenres() {
+        if (genreList.isNotEmpty() || fetchGenresAttempts >= 3) return
+        launchIO {
+            try {
+                client.newCall(genresRequest()).await()
+                    .use { response ->
+                        parseGenres(response)
+                    }
+                    .takeIf { it.isNotEmpty() }
+                    ?.let { genreList = it }
+            } catch (_: Exception) {
+            } finally {
+                fetchGenresAttempts++
+            }
+        }
+    }
+
+    private fun genresRequest(): Request = GET("$apiUrl/api/next/categories", headers)
+
+    private fun parseGenres(response: Response): List<Genre> = response.parseAs<FilterOptions>()
+        .categories
+        .map { Genre(it.name, it.slug) }
+
+    private var genreList: List<Genre> = emptyList()
+
+    private var fetchGenresAttempts: Int = 0
+
+    // ============================= Utilities ==============================
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    private fun launchIO(block: suspend () -> Unit) = scope.launch { block() }
 }
