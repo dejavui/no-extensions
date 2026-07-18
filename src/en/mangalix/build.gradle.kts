@@ -5,20 +5,17 @@ plugins {
 }
 
 keiyoushi {
-    name = "Ariverse"
-    versionCode = 54
+    name = "MangaLix"
+    versionCode = 1
     contentWarning = ContentWarning.MIXED
     libVersion = "1.6"
 
     source {
-        lang = "vi"
-        baseUrl {
-            custom("https://arigl.xyz")
-        }
-        id = 4480433466073326866
+        lang = "en"
+        baseUrl = "https://mangalix.com"
     }
 
     deeplink {
-        path("/comic/story/..*")
+        path("/manga/..*")
     }
 }
