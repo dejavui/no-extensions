@@ -6,7 +6,7 @@ plugins {
 
 keiyoushi {
     name = "E-Hentai"
-    versionCode = 28
+    versionCode = 27
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"
 
@@ -26,7 +26,6 @@ keiyoushi {
 
     deeplink {
         host("e-hentai.org")
-        host("exhentai.org")
         path("/g/..*/..*")
     }
 }
