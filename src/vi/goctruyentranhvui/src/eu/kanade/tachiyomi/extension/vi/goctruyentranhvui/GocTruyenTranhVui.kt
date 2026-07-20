@@ -223,13 +223,14 @@ abstract class GocTruyenTranhVui :
                 }
             }
         }
-
+        // Thử lần 1
         var pages = requestImages()
-
+        // Nếu thất bại (do hết hạn cookie/phiên làm việc)
         if (pages == null) {
+            // Gọi "mồi" đến trang chi tiết để làm mới cookie
             val mangaUrl = "$baseUrl/truyen/$slug"
-            client.get(mangaUrl).use { }
-
+            client.get(mangaUrl).use { /* Chỉ gọi để lấy cookie */ }
+            // Thử lần 2 sau khi đã có cookie mới
             pages = requestImages()
         }
 
