@@ -208,26 +208,32 @@ abstract class GocTruyenTranhVui :
             .add("nameEn", slug)
             .build()
 
-        client.post("$baseUrl/api/chapter/loadAll", getPageHeaders(), body).use { response ->
-            val jsonResult = runCatching { response.parseAs<ResultDto<ImageListDto>>() }
-            jsonResult.onFailure {
-                throw Exception("Có thể: Phiên làm việc đã hết hạn, vui lòng tải lại")
-            }
+        suspend fun requestImages(): List<Page>? {
+            return client.post("$baseUrl/api/chapter/loadAll", getPageHeaders(), body).use { response ->
+                val result = runCatching { response.parseAs<ResultDto<ImageListDto>>() }.getOrNull()
+                val imageList = result?.result?.data ?: return@use null
 
-            val imageList = jsonResult.getOrThrow().result.data
-            if (imageList.isNullOrEmpty()) {
-                throw Exception("Chưa đăng nhập trong WebView. Hoặc không có ảnh!")
-            }
-
-            return imageList.mapIndexed { i, imgUrl ->
-                val finalUrl = if (imgUrl.startsWith("/image/")) {
-                    baseUrl + imgUrl
-                } else {
-                    imgUrl
+                imageList.mapIndexed { i, imgUrl ->
+                    val finalUrl = if (imgUrl.startsWith("/image/")) {
+                        baseUrl + imgUrl
+                    } else {
+                        imgUrl
+                    }
+                    Page(i, imageUrl = finalUrl)
                 }
-                Page(i, imageUrl = finalUrl)
             }
         }
+
+        var pages = requestImages()
+
+        if (pages == null) {
+            val mangaUrl = "$baseUrl/truyen/$slug"
+            client.get(mangaUrl).use { }
+
+            pages = requestImages()
+        }
+
+        return pages ?: throw Exception("Chưa đăng nhập trong WebView. Hoặc không có ảnh!")
     }
 
     private suspend fun getPageHeaders(): Headers {
