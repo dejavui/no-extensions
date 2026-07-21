@@ -19,11 +19,13 @@ import keiyoushi.source.KeiSource
 import keiyoushi.utils.getLocalStorage
 import keiyoushi.utils.getPreferences
 import keiyoushi.utils.parseAs
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonElement
 import okhttp3.FormBody
 import okhttp3.Headers
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Response
 import org.jsoup.nodes.Document
@@ -41,6 +43,7 @@ abstract class GocTruyenTranhVui :
 
     override fun OkHttpClient.Builder.configureClient() = apply {
         rateLimit(3)
+        addInterceptor(::authInterceptor)
     }
 
     override fun Headers.Builder.configureHeaders(): Headers.Builder = apply {
@@ -65,6 +68,24 @@ abstract class GocTruyenTranhVui :
             .add("Sec-Fetch-User", "?1")
             .add("Upgrade-Insecure-Requests", "1")
             .build()
+
+    private fun authInterceptor(chain: Interceptor.Chain): Response {
+        val request = chain.request()
+        if (request.url.encodedPath.contains("/api/")) {
+            val token = runBlocking { getToken() }
+            val newRequest = request.newBuilder().apply {
+                header("X-Requested-With", "XMLHttpRequest")
+                if (token != null) {
+                    header("Authorization", token)
+                }
+                if (request.method == "POST") {
+                    header("Origin", baseUrl)
+                }
+            }.build()
+            return chain.proceed(newRequest)
+        }
+        return chain.proceed(request)
+    }
 
     // ============================== Popular ===============================
 
@@ -151,7 +172,7 @@ abstract class GocTruyenTranhVui :
         val slug = details.url.substringAfter(':')
         val chapterUrl = "$baseUrl/api/comic/$mangaId/chapter?limit=-1"
 
-        val chaptersList = client.get(chapterUrl, xhrHeaders).use { response ->
+        val chaptersList = client.get(chapterUrl).use { response ->
             parseChapterList(response, slug)
         }
 
@@ -209,7 +230,7 @@ abstract class GocTruyenTranhVui :
             .build()
 
         suspend fun requestImages(): List<Page>? {
-            return client.post("$baseUrl/api/chapter/loadAll", getPageHeaders(), body).use { response ->
+            return client.post("$baseUrl/api/chapter/loadAll", body).use { response ->
                 val result = runCatching { response.parseAs<ResultDto<ImageListDto>>() }.getOrNull()
                 val imageList = result?.result?.data ?: return@use null
 
@@ -235,19 +256,6 @@ abstract class GocTruyenTranhVui :
         }
 
         return pages ?: throw Exception("Chưa đăng nhập trong WebView. Hoặc không có ảnh!")
-    }
-
-    private suspend fun getPageHeaders(): Headers {
-        val token = getToken()
-        return if (token != null) {
-            headersBuilder()
-                .set("X-Requested-With", "XMLHttpRequest")
-                .set("Origin", baseUrl)
-                .set("Authorization", token)
-                .build()
-        } else {
-            xhrHeaders
-        }
     }
 
     private var tokenCache: String? = null

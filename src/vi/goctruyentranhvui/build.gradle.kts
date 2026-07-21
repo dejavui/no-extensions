@@ -18,7 +18,6 @@ keiyoushi {
     }
 
     deeplink {
-        host("goctruyentranhvui41.com")
         path("/truyen/..*")
     }
 }
