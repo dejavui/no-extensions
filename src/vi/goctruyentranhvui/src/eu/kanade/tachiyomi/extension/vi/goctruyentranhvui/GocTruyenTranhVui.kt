@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.preference.EditTextPreference
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.source.ConfigurableSource
+import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -270,12 +271,24 @@ abstract class GocTruyenTranhVui :
     }
 
     // ============================== Filters ===============================
+    override val supportsFilterFetching get() = true
 
-    override fun getFilterList(data: JsonElement?): FilterList = FilterList(
-        StatusList(getStatusList()),
-        SortByList(getSortByList()),
-        GenreList(getGenreList()),
-    )
+    override suspend fun fetchFilterData(): JsonElement = client.get("$baseUrl/api/category", xhrHeaders).parseAs()
+
+    override fun getFilterList(data: JsonElement?): FilterList {
+        val genres = data?.parseAs<ResultDto<List<CategoryDto>>>()?.result
+            ?.takeIf { it.isNotEmpty() }
+            ?.map(CategoryDto::toOption)
+            ?: getGenreList()
+
+        val filters = mutableListOf<Filter<*>>(
+            StatusList(getStatusList()),
+            SortByList(getSortByList()),
+            GenreList(genres),
+        )
+
+        return FilterList(filters)
+    }
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         EditTextPreference(screen.context).apply {

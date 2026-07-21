@@ -6,9 +6,9 @@ plugins {
 
 keiyoushi {
     name = "Dilib"
-    versionCode = 1
+    versionCode = 2
     contentWarning = ContentWarning.SAFE
-    libVersion = "1.4"
+    libVersion = "1.6"
 
     source {
         lang = "vi"
@@ -16,8 +16,9 @@ keiyoushi {
             custom("https://dilib.vn")
         }
     }
-}
 
-dependencies {
-    implementation(project(":lib:randomua"))
+    deeplink {
+        path("/..*.html")
+        path("/truyen-tranh/..*.html")
+    }
 }
