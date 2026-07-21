@@ -1,12 +1,19 @@
 # Dejavui Extensions
 
+### Please give the repo a :star:
 
-* You can add our repo by visiting the [Dejavui Website](https://dejavui.github.io/add-repo)
-* Otherwise, copy & paste the following URL: https://raw.githubusercontent.com/dejavui/not-extensions/repo/index.min.json
+| Build                                                                                                                                                                               | Need Help?                                                                                                                                              |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+
+## Usage
+**If you are new to repository/extensions, please read the [Keiyoushi Getting Started guide](https://dejavui.github.io/docs/guides/getting-started#adding-the-extension-repo) first.**
+
+* You can add our repo by visiting the [Keiyoushi Website](https://dejavui.github.io/add-repo)
+* Otherwise, copy & paste the following URL: https://github.com/dejavui/not-extensions/raw/repo/index.pb
 
 ## Requests
 
-To request a new source or bug fix, [create an issue](https://github.com/dejavui/no-extensions/issues/new/choose).
+To request a new source or bug fix, [create an issue](https://github.com/dejavui/no-extensions-source/issues/new/choose).
 
 Please note that creating an issue does not mean that the source will be added or fixed in a timely
 fashion, because the work is volunteer-based. Some sources may also be impossible to do or prohibitively
@@ -19,7 +26,7 @@ Issues are up-for-grabs for any developer if there is no assigned user already.
 
 Contributions are welcome!
 
-Check out the repo's [issue backlog](https://github.com/dejavui/no-extensions/issues) for source requests and bug reports.
+Check out the repo's [issue backlog](https://github.com/dejavui/no-extensions-source/issues) for source requests and bug reports.
 
 ## License
 
