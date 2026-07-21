@@ -16,6 +16,7 @@ import index_pb2
 APPLICATION_ICON_320_REGEX = re.compile(
     r"^application-icon-320:'([^']+)'", re.MULTILINE
 )
+LANGUAGE_REGEX = re.compile(r"tachiyomi-([^.]+)")
 
 
 @cache
@@ -150,6 +151,7 @@ with REPO_DIR.joinpath("index.json").open("w", encoding="utf-8") as f:
 
 with REPO_DIR.joinpath("index.pb").open("wb") as f:
     f.write(gzip.compress(index.SerializeToString()))
+
 
 def get_legacy_lang(ext) -> str:
     apk_filename = ext.resources.apkUrl.split("/")[-1]
