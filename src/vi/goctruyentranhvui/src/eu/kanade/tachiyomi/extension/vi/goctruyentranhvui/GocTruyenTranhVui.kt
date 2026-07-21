@@ -4,7 +4,6 @@ import android.widget.Toast
 import androidx.preference.EditTextPreference
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.source.ConfigurableSource
-import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -20,6 +19,8 @@ import keiyoushi.source.KeiSource
 import keiyoushi.utils.getLocalStorage
 import keiyoushi.utils.getPreferences
 import keiyoushi.utils.parseAs
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonElement
 import okhttp3.FormBody
@@ -42,7 +43,7 @@ abstract class GocTruyenTranhVui :
 
     private val preferences by lazy { getPreferences() }
 
-    override fun OkHttpClient.Builder.configureClient() = apply {
+    override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = apply {
         rateLimit(3)
         addInterceptor(::authInterceptor)
     }
@@ -72,20 +73,26 @@ abstract class GocTruyenTranhVui :
 
     private fun authInterceptor(chain: Interceptor.Chain): Response {
         val request = chain.request()
-        if (request.url.encodedPath.contains("/api/")) {
-            val token = runBlocking { getToken() }
-            val newRequest = request.newBuilder().apply {
+
+        if (!request.url.encodedPath.startsWith("/api/")) {
+            return chain.proceed(request)
+        }
+
+        val token = tokenCache ?: runBlocking { getToken() }
+
+        return chain.proceed(
+            request.newBuilder().apply {
                 header("X-Requested-With", "XMLHttpRequest")
-                if (token != null) {
-                    header("Authorization", token)
+
+                token?.let {
+                    header("Authorization", it)
                 }
+
                 if (request.method == "POST") {
                     header("Origin", baseUrl)
                 }
-            }.build()
-            return chain.proceed(newRequest)
-        }
-        return chain.proceed(request)
+            }.build(),
+        )
     }
 
     // ============================== Popular ===============================
@@ -120,19 +127,15 @@ abstract class GocTruyenTranhVui :
             addQueryParameter("p", (page - 1).toString())
             if (query.isNotEmpty()) addQueryParameter("searchValue", query)
             for (filter in filters) {
-                when (filter) {
-                    is FilterGroup ->
-                        for (checkbox in filter.state) {
-                            if (checkbox.state) addQueryParameter(filter.query, checkbox.id)
-                        }
-                    else -> {}
+                if (filter is FilterGroup) {
+                    for (checkbox in filter.state) {
+                        if (checkbox.state) addQueryParameter(filter.query, checkbox.id)
+                    }
                 }
             }
         }.build()
 
-        client.get(url, xhrHeaders).use { response ->
-            return parseMangaPage(response)
-        }
+        return parseMangaPage(client.get(url, xhrHeaders))
     }
 
     private fun parseMangaPage(response: Response): MangasPage {
@@ -164,20 +167,32 @@ abstract class GocTruyenTranhVui :
         chapters: List<SChapter>,
         fetchDetails: Boolean,
         fetchChapters: Boolean,
-    ): SMangaUpdate {
-        val details = client.get(getMangaUrl(manga)).use { response ->
-            parseMangaDetails(response.asJsoup(), response.request.url)
+    ): SMangaUpdate = coroutineScope {
+        val detailsDeferred = async {
+            if (fetchDetails) {
+                client.get(getMangaUrl(manga)).use { response ->
+                    parseMangaDetails(response.asJsoup(), response.request.url)
+                }
+            } else {
+                manga
+            }
         }
 
-        val mangaId = details.url.substringBefore(':')
-        val slug = details.url.substringAfter(':')
-        val chapterUrl = "$baseUrl/api/comic/$mangaId/chapter?limit=-1"
+        val chaptersDeferred = async {
+            if (fetchChapters) {
+                val mangaId = manga.url.substringBefore(':')
+                val slug = manga.url.substringAfter(':')
+                val chapterUrl = "$baseUrl/api/comic/$mangaId/chapter?limit=-1"
 
-        val chaptersList = client.get(chapterUrl).use { response ->
-            parseChapterList(response, slug)
+                client.get(chapterUrl, xhrHeaders).use { response ->
+                    parseChapterList(response, slug)
+                }
+            } else {
+                chapters
+            }
         }
 
-        return SMangaUpdate(details, chaptersList)
+        SMangaUpdate(detailsDeferred.await(), chaptersDeferred.await())
     }
 
     private fun parseMangaDetails(document: Document, requestUrl: HttpUrl): SManga = SManga.create().apply {
@@ -195,7 +210,7 @@ abstract class GocTruyenTranhVui :
             ?: requestUrl.pathSegments.getOrNull(1)
 
         if (id != null && nameEn != null) {
-            this.url = "$id:$nameEn"
+            setUrlWithoutDomain("$id:$nameEn")
         }
     }
 
@@ -262,12 +277,20 @@ abstract class GocTruyenTranhVui :
     private var tokenCache: String? = null
 
     private suspend fun getToken(): String? {
-        tokenCache?.also { return it }
-        val customToken = preferences.getString(CUSTOM_TOKEN, null)
-        if (!customToken.isNullOrBlank()) return customToken
+        tokenCache?.let { return it }
 
-        tokenCache = getLocalStorage(baseUrl, "Authorization")
-        return tokenCache
+        preferences.getString(CUSTOM_TOKEN, null)
+            ?.takeIf(String::isNotBlank)
+            ?.also {
+                tokenCache = it
+                return it
+            }
+
+        return getLocalStorage(baseUrl, "Authorization")
+            ?.takeIf(String::isNotBlank)
+            ?.also {
+                tokenCache = it
+            }
     }
 
     // ============================== Filters ===============================
@@ -276,16 +299,20 @@ abstract class GocTruyenTranhVui :
     override suspend fun fetchFilterData(): JsonElement = client.get("$baseUrl/api/category", xhrHeaders).parseAs()
 
     override fun getFilterList(data: JsonElement?): FilterList {
-        val genres = data?.parseAs<ResultDto<List<CategoryDto>>>()?.result
-            ?.takeIf { it.isNotEmpty() }
-            ?.map(CategoryDto::toOption)
-            ?: getGenreList()
+        val genres = data
+            ?.parseAs<ResultDto<List<CategoryDto>>>()
+            ?.result
+            .orEmpty()
+            .map(CategoryDto::toOption)
 
-        val filters = mutableListOf<Filter<*>>(
+        val filters = mutableListOf(
             StatusList(getStatusList()),
             SortByList(getSortByList()),
-            GenreList(genres),
         )
+
+        if (genres.isNotEmpty()) {
+            filters += GenreList(genres)
+        }
 
         return FilterList(filters)
     }
