@@ -59,6 +59,10 @@ abstract class ViTruyen : KeiSource() {
         val status = filters.filterIsInstance<StatusFilter>().firstOrNull()?.let { it.values[it.state].slug } ?: ""
 
         val url = apiUrl.toHttpUrl().newBuilder().apply {
+            if (query.isNotEmpty()) {
+                addPathSegments("api/next/search-suggestions")
+                addQueryParameter("q", query)
+            }
             addPathSegments("api/next/the-loai")
             addPathSegment(genre)
             addQueryParameter("page", page.toString())
