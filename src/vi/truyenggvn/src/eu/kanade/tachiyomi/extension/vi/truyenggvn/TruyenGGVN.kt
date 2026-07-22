@@ -1,37 +1,40 @@
 package eu.kanade.tachiyomi.extension.vi.truyenggvn
 
-import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
-import eu.kanade.tachiyomi.source.online.HttpSource
+import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import eu.kanade.tachiyomi.util.asJsoup
 import keiyoushi.annotation.Source
+import keiyoushi.network.get
 import keiyoushi.network.rateLimit
+import keiyoushi.source.KeiSource
 import keiyoushi.utils.tryParse
+import kotlinx.serialization.json.JsonElement
 import okhttp3.CacheControl
+import okhttp3.Headers
+import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.Response
+import org.jsoup.nodes.Document
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
+import kotlin.time.Duration.Companion.seconds
 
 @Source
-abstract class TruyenGGVN : HttpSource() {
+abstract class TruyenGGVN : KeiSource() {
 
-    override val supportsLatest = true
+    override fun OkHttpClient.Builder.configureClient() = apply {
+        rateLimit(1, 2.seconds) { it.host == baseUrl.toHttpUrl().host }
+    }
 
-    override val client: OkHttpClient = network.client.newBuilder()
-        .rateLimit(3)
-        .build()
-
-    override fun headersBuilder() = super.headersBuilder()
-        .add("Referer", "$baseUrl/")
+    override fun Headers.Builder.configureHeaders(): Headers.Builder = apply {
+        add("Referer", "$baseUrl/")
+    }
 
     private val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.ROOT).apply {
         timeZone = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
@@ -39,8 +42,7 @@ abstract class TruyenGGVN : HttpSource() {
 
     // ============================= Utilities ==============================
 
-    private fun mangaFromElement(response: Response): MangasPage {
-        val document = response.asJsoup()
+    private fun mangaFromElement(document: Document): MangasPage {
         val mangas = document.select("#main_homepage ul.list_grid.grid li").map { element ->
             SManga.create().apply {
                 val link = element.selectFirst("h3 a")!!
@@ -70,19 +72,23 @@ abstract class TruyenGGVN : HttpSource() {
 
     // ============================== Popular ===============================
 
-    override fun popularMangaRequest(page: Int): Request = GET("$baseUrl/truyen-yeu-thich" + if (page > 1) "/trang-$page.html" else "", headers)
+    override suspend fun getPopularManga(page: Int): MangasPage {
+        val url = "$baseUrl/truyen-yeu-thich" + if (page > 1) "/trang-$page.html" else ""
 
-    override fun popularMangaParse(response: Response): MangasPage = mangaFromElement(response)
+        return mangaFromElement(client.get(url, headers).asJsoup())
+    }
 
     // =============================== Latest ===============================
 
-    override fun latestUpdatesRequest(page: Int): Request = GET("$baseUrl/truyen-moi-cap-nhat" + if (page > 1) "/trang-$page.html" else "", headers)
+    override suspend fun getLatestUpdates(page: Int): MangasPage {
+        val url = "$baseUrl/truyen-moi-cap-nhat" + if (page > 1) "/trang-$page.html" else ""
 
-    override fun latestUpdatesParse(response: Response): MangasPage = popularMangaParse(response)
+        return mangaFromElement(client.get(url, headers).asJsoup())
+    }
 
     // =============================== Search ===============================
 
-    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
+    override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
         val endpoint = if (query.isNotBlank()) "tim-kiem" else "tim-kiem-nang-cao"
         val url = ("$baseUrl/$endpoint" + if (page > 1) "/trang-$page.html" else "").toHttpUrl().newBuilder().apply {
             if (query.isNotBlank()) {
@@ -114,15 +120,36 @@ abstract class TruyenGGVN : HttpSource() {
             }
         }.build()
 
-        return GET(url.toString(), headers)
+        return mangaFromElement(client.get(url, headers).asJsoup())
     }
 
-    override fun searchMangaParse(response: Response): MangasPage = popularMangaParse(response)
+    override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
+        if (url.host == baseUrl.toHttpUrl().host) {
+            client.get(url, headers).use { response ->
+                return parseMangaDetails(response.asJsoup())
+            }
+        }
+        return null
+    }
 
     // =============================== Details ==============================
 
-    override fun mangaDetailsParse(response: Response): SManga = SManga.create().apply {
-        val document = response.asJsoup()
+    override suspend fun fetchMangaUpdate(
+        manga: SManga,
+        chapters: List<SChapter>,
+        fetchDetails: Boolean,
+        fetchChapters: Boolean,
+    ): SMangaUpdate {
+        client.get(getMangaUrl(manga), headers).use { response ->
+            val document = response.asJsoup()
+            val details = if (fetchDetails) parseMangaDetails(document) else manga
+            val chaptersList = if (fetchChapters) parseChapterList(document) else chapters
+
+            return SMangaUpdate(details, chaptersList)
+        }
+    }
+
+    private fun parseMangaDetails(document: Document): SManga = SManga.create().apply {
         title = document.select("h1[itemprop=name]").text()
         author = document.select("span:contains(Tác Giả) + span").text()
         genre = document.select(".book-genres ul li a").joinToString { it.text() }
@@ -133,140 +160,35 @@ abstract class TruyenGGVN : HttpSource() {
 
     // ============================== Chapters ==============================
 
-    override fun chapterListParse(response: Response): List<SChapter> {
-        val document = response.asJsoup()
-        return document.select(".list_chapter .works-chapter-item").map { element ->
-            SChapter.create().apply {
-                val link = element.selectFirst("a")!!
-                setUrlWithoutDomain(link.absUrl("href"))
-                name = link.text()
-                date_upload = dateFormat.tryParse(element.select(".time-chap").text())
-            }
+    private fun parseChapterList(document: Document): List<SChapter> = document.select(".list_chapter .works-chapter-item").map { element ->
+        SChapter.create().apply {
+            val link = element.selectFirst("a")!!
+            setUrlWithoutDomain(link.absUrl("href"))
+            name = link.text()
+            date_upload = dateFormat.tryParse(element.select(".time-chap").text())
         }
     }
 
     // =============================== Pages ================================
 
-    override fun pageListRequest(chapter: SChapter): Request = super.pageListRequest(chapter)
-        .newBuilder()
-        .cacheControl(CacheControl.FORCE_NETWORK)
-        .build()
-
-    override fun pageListParse(response: Response): List<Page> {
-        val document = response.asJsoup()
-        return document.select(".page-chapter img").mapIndexed { index, element ->
-            Page(index, imageUrl = element.absUrl("src").ifEmpty { element.absUrl("data-original") })
+    override suspend fun getPageList(chapter: SChapter): List<Page> {
+        val cacheControl = CacheControl.FORCE_NETWORK
+        client.get(getChapterUrl(chapter), headers, cacheControl).use { response ->
+            val document = response.asJsoup()
+            return document.select(".page-chapter img").mapIndexed { index, element ->
+                Page(index, imageUrl = element.absUrl("src").ifEmpty { element.absUrl("data-original") })
+            }
         }
     }
 
-    override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
-
     // ============================= Filters ================================
 
-    override fun getFilterList(): FilterList = FilterList(
+    override fun getFilterList(data: JsonElement?): FilterList = FilterList(
         GenreFilter(getGenreList()),
         Filter.Separator(),
         StatusFilter(),
         SortFilter(),
         ChapterCountFilter(),
         CountryFilter(),
-    )
-
-    private class GenreFilter(genres: List<Genre>) : Filter.Group<Genre>("Thể loại", genres)
-
-    private class Genre(name: String, val id: String) : Filter.TriState(name) {
-        override fun toString(): String = name
-    }
-
-    private class StatusFilter :
-        Filter.Select<Genre>(
-            "Tình trạng",
-            arrayOf(
-                Genre("Tất cả", "-1"),
-                Genre("Đang tiến hành", "0"),
-                Genre("Hoàn thành", "2"),
-            ),
-        )
-
-    private class SortFilter :
-        Filter.Sort(
-            "Sắp xếp",
-            arrayOf("Ngày đăng", "Ngày cập nhật", "Lượt xem"),
-            Selection(1, false),
-        )
-
-    private class ChapterCountFilter :
-        Filter.Select<Genre>(
-            "Số lượng chương",
-            arrayOf(
-                Genre("> 0", "0"),
-                Genre(">= 100", "100"),
-                Genre(">= 200", "200"),
-                Genre(">= 300", "300"),
-                Genre(">= 400", "400"),
-                Genre(">= 500", "500"),
-            ),
-        )
-
-    private class CountryFilter :
-        Filter.Select<Genre>(
-            "Quốc gia",
-            arrayOf(
-                Genre("Tất cả", "0"),
-                Genre("Trung Quốc", "1"),
-                Genre("Việt Nam", "2"),
-                Genre("Hàn Quốc", "3"),
-                Genre("Nhật Bản", "4"),
-                Genre("Mỹ", "5"),
-            ),
-        )
-
-    private fun getGenreList() = listOf(
-        Genre("Action", "26"),
-        Genre("Adventure", "27"),
-        Genre("Anime", "62"),
-        Genre("Chuyển Sinh", "91"),
-        Genre("Cổ Đại", "90"),
-        Genre("Comedy", "28"),
-        Genre("Comic", "60"),
-        Genre("Demons", "99"),
-        Genre("Detective", "100"),
-        Genre("Doujinshi", "96"),
-        Genre("Drama", "29"),
-        Genre("Fantasy", "30"),
-        Genre("Gender Bender", "45"),
-        Genre("Harem", "47"),
-        Genre("Historical", "51"),
-        Genre("Horror", "44"),
-        Genre("Huyền Huyễn", "468"),
-        Genre("Isekai", "85"),
-        Genre("Josei", "54"),
-        Genre("Mafia", "69"),
-        Genre("Magic", "58"),
-        Genre("Manga", "469"),
-        Genre("Manhua", "35"),
-        Genre("Manhwa", "49"),
-        Genre("Martial Arts", "41"),
-        Genre("Military", "101"),
-        Genre("Mystery", "39"),
-        Genre("Ngôn Tình", "87"),
-        Genre("One shot", "95"),
-        Genre("Psychological", "40"),
-        Genre("Romance", "36"),
-        Genre("School Life", "37"),
-        Genre("Sci-fi", "43"),
-        Genre("Seinen", "42"),
-        Genre("Shoujo", "38"),
-        Genre("Shoujo Ai", "98"),
-        Genre("Shounen", "31"),
-        Genre("Shounen Ai", "86"),
-        Genre("Slice of life", "46"),
-        Genre("Sports", "57"),
-        Genre("Supernatural", "32"),
-        Genre("Tragedy", "52"),
-        Genre("Trọng Sinh", "82"),
-        Genre("Truyện Màu", "92"),
-        Genre("Webtoon", "55"),
-        Genre("Xuyên Không", "88"),
     )
 }
