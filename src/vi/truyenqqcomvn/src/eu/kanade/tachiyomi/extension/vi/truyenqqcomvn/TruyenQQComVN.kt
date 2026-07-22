@@ -12,17 +12,20 @@ import keiyoushi.annotation.Source
 import keiyoushi.network.get
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
-import keiyoushi.utils.tryParse
 import kotlinx.serialization.json.JsonElement
 import okhttp3.Headers
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
-import java.text.SimpleDateFormat
-import java.util.Calendar
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
-import java.util.TimeZone
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 @Source
@@ -36,9 +39,7 @@ abstract class TruyenQQComVN : KeiSource() {
         add("Referer", "$baseUrl/")
     }
 
-    private val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.ROOT).apply {
-        timeZone = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
-    }
+    private val dateFormat = DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.ROOT)
 
     // ============================== Popular ===============================
 
@@ -145,41 +146,34 @@ abstract class TruyenQQComVN : KeiSource() {
             val anchor = element.selectFirst(".item-name a")!!
             setUrlWithoutDomain(anchor.attr("href"))
             name = anchor.text().trim()
-            date_upload = parseRelativeDate(element.selectFirst(".item-time")?.text()) ?: 0L
+            date_upload = parseRelativeDate(element.selectFirst(".item-time")?.text())
         }
     }
 
-    private fun parseRelativeDate(date: String?): Long? {
-        if (date == null) return null
-        val calendar = Calendar.getInstance()
-        return when {
-            date.contains("giây trước", ignoreCase = true) -> {
-                calendar.apply { add(Calendar.SECOND, -date.split(" ")[0].toInt()) }.timeInMillis
-            }
-            date.contains("phút trước", ignoreCase = true) -> {
-                calendar.apply { add(Calendar.MINUTE, -date.split(" ")[0].toInt()) }.timeInMillis
-            }
-            date.contains("giờ trước", ignoreCase = true) -> {
-                calendar.apply { add(Calendar.HOUR_OF_DAY, -date.split(" ")[0].toInt()) }.timeInMillis
-            }
-            date.contains("ngày trước", ignoreCase = true) -> {
-                calendar.apply { add(Calendar.DAY_OF_YEAR, -date.split(" ")[0].toInt()) }.timeInMillis
-            }
-            date.contains("tuần trước", ignoreCase = true) -> {
-                calendar.apply { add(Calendar.WEEK_OF_YEAR, -date.split(" ")[0].toInt()) }.timeInMillis
-            }
-            date.contains("tháng trước", ignoreCase = true) -> {
-                calendar.apply { add(Calendar.MONTH, -date.split(" ")[0].toInt()) }.timeInMillis
-            }
-            date.contains("năm trước", ignoreCase = true) -> {
-                calendar.apply { add(Calendar.YEAR, -date.split(" ")[0].toInt()) }.timeInMillis
-            }
-            date.contains("hôm qua", ignoreCase = true) -> {
-                calendar.apply { add(Calendar.DAY_OF_YEAR, -1) }.timeInMillis
-            }
-            else -> dateFormat.tryParse(date)
+    private fun parseRelativeDate(date: String?): Long {
+        if (date == null) return 0L
+        val now = Clock.System.now()
+        val number = date.replace(Regex("[^0-9]"), "").trim().toIntOrNull() ?: 0
+        val duration = when {
+            date.contains("giây trước", ignoreCase = true) -> number.seconds
+            date.contains("phút trước", ignoreCase = true) -> number.minutes
+            date.contains("giờ trước", ignoreCase = true) -> number.hours
+            date.contains("ngày trước", ignoreCase = true) -> number.days
+            date.contains("tuần trước", ignoreCase = true) -> (number * 7).days
+            date.contains("tháng trước", ignoreCase = true) -> (number * 30).days
+            date.contains("năm trước", ignoreCase = true) -> (number * 365).days
+            date.contains("hôm qua", ignoreCase = true) -> 1.days
+            else -> return dateFormat.tryParse(date)
         }
+        return (now - duration).toEpochMilliseconds()
     }
+
+    private fun DateTimeFormatter.tryParse(date: String): Long = runCatching {
+        LocalDate.parse(date, this)
+            .atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh"))
+            .toInstant()
+            .toEpochMilli()
+    }.getOrDefault(0L)
 
     // =============================== Pages ================================
 
