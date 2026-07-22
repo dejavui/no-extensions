@@ -1,81 +1,111 @@
 package eu.kanade.tachiyomi.extension.vi.matodex
 
-import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
-import eu.kanade.tachiyomi.source.online.HttpSource
+import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import keiyoushi.annotation.Source
+import keiyoushi.network.get
 import keiyoushi.network.rateLimit
+import keiyoushi.source.KeiSource
 import keiyoushi.utils.parseAs
+import kotlinx.serialization.json.JsonElement
 import okhttp3.Headers
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.Response
-import rx.Observable
 import java.util.Locale
 
 @Source
-abstract class MatoDex : HttpSource() {
-
-    override val supportsLatest: Boolean = false
+abstract class MatoDex : KeiSource() {
 
     private val apiUrl = "$baseUrl/api/v1/mato"
 
-    override val client: OkHttpClient = network.client.newBuilder()
-        .rateLimit(2)
-        .build()
-
-    override fun headersBuilder(): Headers.Builder = super.headersBuilder()
-        .add("Referer", "$baseUrl/")
-
-    override fun popularMangaRequest(page: Int): Request = GET("$apiUrl/info.json", headers)
-
-    override fun popularMangaParse(response: Response): MangasPage {
-        val info = response.parseAs<MatoInfoDto>()
-        return MangasPage(listOf(info.toSManga()), false)
+    override fun OkHttpClient.Builder.configureClient() = apply {
+        rateLimit(2)
     }
 
-    override fun latestUpdatesRequest(page: Int): Request = popularMangaRequest(page)
+    override fun Headers.Builder.configureHeaders(): Headers.Builder = apply {
+        add("Referer", "$baseUrl/")
+    }
 
-    override fun latestUpdatesParse(response: Response): MangasPage = popularMangaParse(response)
+    // ============================== Popular ===============================
 
-    override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> {
+    override suspend fun getPopularManga(page: Int): MangasPage {
+        client.get("$apiUrl/info.json", headers).use { response ->
+            val info = response.parseAs<MatoInfoDto>()
+            return MangasPage(listOf(info.toSManga()), false)
+        }
+    }
+
+    // =============================== Latest ===============================
+
+    override suspend fun getLatestUpdates(page: Int): MangasPage = getPopularManga(page)
+
+    // =============================== Search ===============================
+
+    override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
         if (page != 1 || !query.isMatoQuery()) {
-            return Observable.just(MangasPage(emptyList(), false))
+            return MangasPage(emptyList(), false)
         }
 
-        return super.fetchSearchManga(page, query, filters)
+        return getPopularManga(page)
     }
 
-    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request = popularMangaRequest(page)
+    override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
+        if (url.host == baseUrl.toHttpUrl().host) {
+            client.get("$apiUrl/info.json", headers).use { response ->
+                return response.parseAs<MatoInfoDto>().toSManga()
+            }
+        }
+        return null
+    }
 
-    override fun searchMangaParse(response: Response): MangasPage = popularMangaParse(response)
+    // =========================== Manga Details ============================
 
-    override fun mangaDetailsRequest(manga: SManga): Request = GET("$apiUrl/info.json", headers)
+    override suspend fun fetchMangaUpdate(
+        manga: SManga,
+        chapters: List<SChapter>,
+        fetchDetails: Boolean,
+        fetchChapters: Boolean,
+    ): SMangaUpdate {
+        val details = if (fetchDetails) {
+            client.get("$apiUrl/info.json", headers).use { response ->
+                response.parseAs<MatoInfoDto>().toSManga()
+            }
+        } else {
+            manga
+        }
 
-    override fun mangaDetailsParse(response: Response): SManga = response.parseAs<MatoInfoDto>().toSManga()
+        val chaptersList = if (fetchChapters) {
+            client.get("$apiUrl/chapters.json", headers).use { response ->
+                response.parseAs<List<MatoChapterDto>>()
+                    .map { it.toSChapter() }
+                    .sortedByDescending { it.chapter_number }
+            }
+        } else {
+            chapters
+        }
+
+        return SMangaUpdate(details, chaptersList)
+    }
 
     override fun getMangaUrl(manga: SManga): String = "$baseUrl/"
 
-    override fun chapterListRequest(manga: SManga): Request = GET("$apiUrl/chapters.json", headers)
-
-    override fun chapterListParse(response: Response): List<SChapter> = response.parseAs<List<MatoChapterDto>>()
-        .map { it.toSChapter() }
-        .sortedByDescending { it.chapter_number }
-
     override fun getChapterUrl(chapter: SChapter): String = "$baseUrl/read/${chapter.url}"
 
-    override fun pageListRequest(chapter: SChapter): Request {
+    // =============================== Pages ================================
+
+    override suspend fun getPageList(chapter: SChapter): List<Page> {
         val chapterId = chapter.url
-        return GET("$apiUrl/chapters/$chapterId.json", headers)
+        client.get("$apiUrl/chapters/$chapterId.json", headers).use { response ->
+            return response.parseAs<MatoChapterPayloadDto>().toPages()
+        }
     }
 
-    override fun pageListParse(response: Response): List<Page> = response.parseAs<MatoChapterPayloadDto>().toPages()
-
-    override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
+    override fun getFilterList(data: JsonElement?): FilterList = FilterList()
 
     private fun String.isMatoQuery(): Boolean {
         val query = trim().lowercase(Locale.ROOT)
