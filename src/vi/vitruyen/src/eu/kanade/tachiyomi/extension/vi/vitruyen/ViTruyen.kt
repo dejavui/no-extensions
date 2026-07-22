@@ -62,13 +62,14 @@ abstract class ViTruyen : KeiSource() {
             if (query.isNotEmpty()) {
                 addPathSegments("api/next/search-suggestions")
                 addQueryParameter("q", query)
-            }
-            addPathSegments("api/next/the-loai")
-            addPathSegment(genre)
-            addQueryParameter("page", page.toString())
-            addQueryParameter("sort", sort)
-            if (status.isNotBlank()) {
-                addQueryParameter("status", status)
+            } else {
+                addPathSegments("api/next/the-loai")
+                addPathSegment(genre)
+                addQueryParameter("page", page.toString())
+                addQueryParameter("sort", sort)
+                if (status.isNotBlank()) {
+                    addQueryParameter("status", status)
+                }
             }
         }.build()
 
