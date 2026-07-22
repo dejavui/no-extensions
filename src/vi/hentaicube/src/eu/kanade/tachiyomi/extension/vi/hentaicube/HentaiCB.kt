@@ -66,6 +66,7 @@ abstract class HentaiCB : Madara() {
             }
             response
         }
+        .rateLimit(3) { it.host == baseUrl.toHttpUrl().host && it.encodedPath.contains("/wp-content/uploads/") }
         .rateLimit(1, 2.seconds) { it.host == baseUrl.toHttpUrl().host }
         .build()
 
