@@ -56,14 +56,6 @@ abstract class GocTruyenTranhVui :
     private val xhrHeaders: Headers
         get() = headersBuilder()
             .set("X-Requested-With", "XMLHttpRequest")
-            .add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
-            .add("Accept-Language", "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7")
-            .add("Cache-Control", "max-age=0")
-            .add("Sec-Fetch-Dest", "document")
-            .add("Sec-Fetch-Mode", "navigate")
-            .add("Sec-Fetch-Site", "same-origin")
-            .add("Sec-Fetch-User", "?1")
-            .add("Upgrade-Insecure-Requests", "1")
             .build()
 
     private fun authInterceptor(chain: Interceptor.Chain): Response {
