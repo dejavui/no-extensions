@@ -13,7 +13,6 @@ import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
 import keiyoushi.utils.parseAs
 import kotlinx.serialization.json.JsonElement
-import okhttp3.Headers
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -60,16 +59,12 @@ abstract class GocTruyenTranh : KeiSource() {
         rateLimit(3)
     }
 
-    override fun Headers.Builder.configureHeaders(): Headers.Builder = apply {
-        add("Referer", "$baseUrl/")
-    }
-
     // ============================== Popular ===============================
 
     override suspend fun getPopularManga(page: Int): MangasPage {
         val url = "$baseUrl/danh-sach/truyen-hot?page=$page"
 
-        return parseMangaPage(client.get(url, headers))
+        return parseMangaPage(client.get(url))
     }
 
     // =============================== Latest ===============================
@@ -77,7 +72,7 @@ abstract class GocTruyenTranh : KeiSource() {
     override suspend fun getLatestUpdates(page: Int): MangasPage {
         val url = "$baseUrl/danh-sach/truyen-moi-cap-nhat?page=$page"
 
-        return parseMangaPage(client.get(url, headers))
+        return parseMangaPage(client.get(url))
     }
 
     // =============================== Search ===============================
@@ -161,10 +156,11 @@ abstract class GocTruyenTranh : KeiSource() {
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        client.get(getMangaUrl(manga), headers).use { response ->
-            val document = response.asJsoup()
-            return SMangaUpdate(parseMangaDetails(document), parseChapterList(document))
-        }
+        val document = client.get(getMangaUrl(manga)).asJsoup()
+        return SMangaUpdate(
+            parseMangaDetails(document),
+            parseChapterList(document),
+        )
     }
 
     private fun parseMangaDetails(document: Document): SManga = SManga.create().apply {
