@@ -111,13 +111,8 @@ abstract class ViTruyen : KeiSource() {
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        client.get(getMangaUrl(manga)).use { response ->
-            val document = response.asJsoup()
-            val details = parseMangaDetails(document)
-            val chaptersList = parseChapterList(document)
-
-            return SMangaUpdate(details, chaptersList)
-        }
+        val document = client.get(getMangaUrl(manga)).asJsoup()
+        return SMangaUpdate(parseMangaDetails(document), parseChapterList(document))
     }
 
     private fun parseMangaDetails(document: Document): SManga = SManga.create().apply {

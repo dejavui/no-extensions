@@ -115,8 +115,9 @@ abstract class GocTruyenTranhVui :
 
     private fun parseMangaPage(response: Response): MangasPage {
         val res = response.parseAs<ResultDto<ListingDto>>()
-        val hasNextPage = res.result.next
-        return MangasPage(res.result.data.map { it.toSManga(baseUrl) }, hasNextPage)
+        val result = res.result ?: throw Exception(res.errorMessage ?: "Lỗi tải danh sách")
+        val hasNextPage = result.next
+        return MangasPage(result.data.map { it.toSManga(baseUrl) }, hasNextPage)
     }
 
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
@@ -132,48 +133,19 @@ abstract class GocTruyenTranhVui :
         chapters: List<SChapter>,
         fetchDetails: Boolean,
         fetchChapters: Boolean,
-    ): SMangaUpdate {
-        getToken()
-        val mangaUrl = getMangaUrl(manga)
-        val mangaId = manga.url.substringBefore(':')
-        val slug = manga.url.substringAfter(':')
+    ): SMangaUpdate = client.get(getMangaUrl(manga).toHttpUrl()).use { response ->
+        val document = response.asJsoup()
+        val newManga = parseMangaDetails(document, response.request.url)
 
-        // 1. Xử lý Details (chỉ gọi request khi fetchDetails = true)
-        var updatedDetails: SManga? = null
-        var hasFetchedMangaUrl = false
-
-        if (fetchDetails) {
-            updatedDetails = client.get(mangaUrl).use { response ->
-                parseMangaDetails(response.asJsoup(), response.request.url)
-            }
-            hasFetchedMangaUrl = true
-        }
-
-        // 2. Xử lý Chapters (chỉ gọi request khi fetchChapters = true)
-        val updatedChapters = if (fetchChapters) {
-            suspend fun requestChapters(): List<SChapter>? {
-                val chapterUrl = "$baseUrl/api/comic/$mangaId/chapter?limit=-1"
-                return client.get(chapterUrl, xhrHeaders).use { response ->
-                    parseChapterList(response, slug)
-                }
-            }
-
-            // Thử lấy chapters lần 1
-            requestChapters() ?: run {
-                // Nếu chưa từng gọi mangaUrl ở bước fetchDetails thì mới gọi mồi cookie ở đây
-                if (!hasFetchedMangaUrl) {
-                    client.get(mangaUrl).close()
-                }
-                // Thử lại lần 2 sau khi mồi/làm mới cookie
-                requestChapters() ?: throw Exception("Phiên làm việc hết hạn. Không thể tải danh sách chương!")
-            }
+        val newChapters = if (fetchChapters) {
+            parseChapterList(newManga)
         } else {
             chapters
         }
 
-        return SMangaUpdate(
-            manga = updatedDetails ?: manga,
-            chapters = updatedChapters,
+        SMangaUpdate(
+            manga = if (fetchDetails) newManga else manga,
+            chapters = newChapters,
         )
     }
 
@@ -196,10 +168,14 @@ abstract class GocTruyenTranhVui :
         }
     }
 
-    private fun parseChapterList(response: Response, slug: String): List<SChapter>? {
-        val chapterJson = response.parseAs<ResultDto<ChapterListDto>>()
-        val chapters = chapterJson.result.chapters
-        if (chapters.isEmpty()) return null
+    private suspend fun parseChapterList(manga: SManga): List<SChapter> {
+        val mangaId = manga.url.substringBefore(':')
+        val slug = manga.url.substringAfter(':')
+        val result = client.get("$baseUrl/api/comic/$mangaId/chapter?limit=-1", xhrHeaders)
+            .parseAs<ResultDto<ChapterListDto>>()
+
+        val chapters = result.result?.chapters ?: throw Exception(result.errorMessage ?: "Phiên làm việc đã hết hạn, vui lòng tải lại.")
+
         return chapters.map { it.toSChapter(slug) }
     }
 
