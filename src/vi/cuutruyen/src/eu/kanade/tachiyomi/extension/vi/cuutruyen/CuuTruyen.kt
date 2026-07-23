@@ -18,7 +18,6 @@ import keiyoushi.utils.getPreferences
 import keiyoushi.utils.parseAs
 import kotlinx.serialization.json.JsonElement
 import okhttp3.CacheControl
-import okhttp3.Headers
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
@@ -38,10 +37,6 @@ abstract class CuuTruyen :
         addInterceptor(ImageInterceptor())
         addInterceptor(::thumbnailIntercept)
         rateLimit(3)
-    }
-
-    override fun Headers.Builder.configureHeaders(): Headers.Builder = apply {
-        add("Referer", "$baseUrl/")
     }
 
     private val titleCache = object : LinkedHashMap<Int, String?>(
@@ -162,23 +157,15 @@ abstract class CuuTruyen :
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        val details = if (fetchDetails) {
-            client.get("$apiUrl${manga.url}").use { response ->
-                response.parseAs<ResponseDto<MangaDto>>().data.toSManga(preferences.coverQuality)
-            }
-        } else {
-            manga
+        val details = client.get("$apiUrl${manga.url}").use { response ->
+            response.parseAs<ResponseDto<MangaDto>>().data.toSManga(preferences.coverQuality)
         }
 
-        val chaptersList = if (fetchChapters) {
-            client.get("$apiUrl${manga.url}/chapters", headers, CacheControl.FORCE_NETWORK).use { response ->
-                val segments = response.request.url.pathSegments
-                val lastIndex = segments.lastIndex
-                val mangaUrl = "/${segments[lastIndex - 2]}/${segments[lastIndex - 1]}"
-                response.parseAs<ResponseDto<List<ChapterDto>>>().data.map { it.toSChapter(mangaUrl) }
-            }
-        } else {
-            chapters
+        val chaptersList = client.get("$apiUrl${manga.url}/chapters", headers, CacheControl.FORCE_NETWORK).use { response ->
+            val segments = response.request.url.pathSegments
+            val lastIndex = segments.lastIndex
+            val mangaUrl = "/${segments[lastIndex - 2]}/${segments[lastIndex - 1]}"
+            response.parseAs<ResponseDto<List<ChapterDto>>>().data.map { it.toSChapter(mangaUrl) }
         }
 
         return SMangaUpdate(details, chaptersList)

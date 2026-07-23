@@ -71,22 +71,14 @@ abstract class MatoDex : KeiSource() {
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        val details = if (fetchDetails) {
-            client.get("$apiUrl/info.json", headers).use { response ->
-                response.parseAs<MatoInfoDto>().toSManga()
-            }
-        } else {
-            manga
+        val details = client.get("$apiUrl/info.json", headers).use { response ->
+            response.parseAs<MatoInfoDto>().toSManga()
         }
 
-        val chaptersList = if (fetchChapters) {
-            client.get("$apiUrl/chapters.json", headers).use { response ->
-                response.parseAs<List<MatoChapterDto>>()
-                    .map { it.toSChapter() }
-                    .sortedByDescending { it.chapter_number }
-            }
-        } else {
-            chapters
+        val chaptersList = client.get("$apiUrl/chapters.json", headers).use { response ->
+            response.parseAs<List<MatoChapterDto>>()
+                .map { it.toSChapter() }
+                .sortedByDescending { it.chapter_number }
         }
 
         return SMangaUpdate(details, chaptersList)

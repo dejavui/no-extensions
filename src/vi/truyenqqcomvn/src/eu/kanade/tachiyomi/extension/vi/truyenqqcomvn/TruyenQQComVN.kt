@@ -13,7 +13,6 @@ import keiyoushi.network.get
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
 import kotlinx.serialization.json.JsonElement
-import okhttp3.Headers
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
@@ -33,10 +32,6 @@ abstract class TruyenQQComVN : KeiSource() {
 
     override fun OkHttpClient.Builder.configureClient() = apply {
         rateLimit(1, 2.seconds) { it.host == baseUrl.toHttpUrl().host }
-    }
-
-    override fun Headers.Builder.configureHeaders(): Headers.Builder = apply {
-        add("Referer", "$baseUrl/")
     }
 
     private val dateFormat = DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.ROOT)
@@ -115,10 +110,7 @@ abstract class TruyenQQComVN : KeiSource() {
     ): SMangaUpdate {
         client.get(getMangaUrl(manga), headers).use { response ->
             val document = response.asJsoup()
-            val details = if (fetchDetails) parseMangaDetails(document) else manga
-            val chaptersList = if (fetchChapters) parseChapterList(document) else chapters
-
-            return SMangaUpdate(details, chaptersList)
+            return SMangaUpdate(parseMangaDetails(document), parseChapterList(document))
         }
     }
 

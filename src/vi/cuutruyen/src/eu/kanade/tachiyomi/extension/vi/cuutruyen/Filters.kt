@@ -1,6 +1,5 @@
 package eu.kanade.tachiyomi.extension.vi.cuutruyen
 
-import android.R.attr.name
 import eu.kanade.tachiyomi.source.model.Filter
 
 class TagFilter(tags: List<Tag>) :

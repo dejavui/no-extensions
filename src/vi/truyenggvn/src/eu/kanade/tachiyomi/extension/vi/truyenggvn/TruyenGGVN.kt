@@ -14,7 +14,6 @@ import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
 import kotlinx.serialization.json.JsonElement
 import okhttp3.CacheControl
-import okhttp3.Headers
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
@@ -23,10 +22,6 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlin.time.Clock
-import kotlin.time.Duration.Companion.days
-import kotlin.time.Duration.Companion.hours
-import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 @Source
@@ -34,10 +29,6 @@ abstract class TruyenGGVN : KeiSource() {
 
     override fun OkHttpClient.Builder.configureClient() = apply {
         rateLimit(1, 2.seconds) { it.host == baseUrl.toHttpUrl().host }
-    }
-
-    override fun Headers.Builder.configureHeaders(): Headers.Builder = apply {
-        add("Referer", "$baseUrl/")
     }
 
     private val dateFormat = DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.ROOT)
@@ -144,10 +135,7 @@ abstract class TruyenGGVN : KeiSource() {
     ): SMangaUpdate {
         client.get(getMangaUrl(manga), headers).use { response ->
             val document = response.asJsoup()
-            val details = if (fetchDetails) parseMangaDetails(document) else manga
-            val chaptersList = if (fetchChapters) parseChapterList(document) else chapters
-
-            return SMangaUpdate(details, chaptersList)
+            return SMangaUpdate(parseMangaDetails(document), parseChapterList(document))
         }
     }
 
@@ -167,25 +155,8 @@ abstract class TruyenGGVN : KeiSource() {
             val link = element.selectFirst("a")!!
             setUrlWithoutDomain(link.absUrl("href"))
             name = link.text()
-            date_upload = parseDate(element.select(".time-chap").text())
+            date_upload = dateFormat.tryParse(element.select(".time-chap").text())
         }
-    }
-
-    private fun parseDate(date: String): Long {
-        val now = Clock.System.now()
-        val number = date.replace(Regex("[^0-9]"), "").trim().toIntOrNull() ?: 0
-        val duration = when {
-            date.contains("giây trước", ignoreCase = true) -> number.seconds
-            date.contains("phút trước", ignoreCase = true) -> number.minutes
-            date.contains("giờ trước", ignoreCase = true) -> number.hours
-            date.contains("ngày trước", ignoreCase = true) -> number.days
-            date.contains("tuần trước", ignoreCase = true) -> (number * 7).days
-            date.contains("tháng trước", ignoreCase = true) -> (number * 30).days
-            date.contains("năm trước", ignoreCase = true) -> (number * 365).days
-            date.contains("hôm qua", ignoreCase = true) -> 1.days
-            else -> return dateFormat.tryParse(date)
-        }
-        return (now - duration).toEpochMilliseconds()
     }
 
     private fun DateTimeFormatter.tryParse(date: String): Long = runCatching {
