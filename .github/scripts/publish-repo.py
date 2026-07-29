@@ -24,7 +24,7 @@ REPO_JAR_DIR.mkdir(parents=True, exist_ok=True)
 
 APK_BASE_URL = "https://cdn.jsdelivr.net/gh/dejavui/not-extensions@repo/apk"
 JAR_BASE_URL = "https://raw.githubusercontent.com/dejavui/not-extensions/repo/jar"
-ICON_BASE_URL = "https://cdn.jsdelivr.net/gh/dejavui/no-extensions@@main"
+ICON_BASE_URL = "https://cdn.jsdelivr.net/gh/dejavui/no-extensions@main"
 
 to_delete: list[str] = json.loads(sys.argv[1])
 
