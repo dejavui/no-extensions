@@ -1,18 +1,18 @@
 package eu.kanade.tachiyomi.extension.all.hitomi
 
 import android.util.Log
-import eu.kanade.tachiyomi.network.GET
-import eu.kanade.tachiyomi.network.await
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
+import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
-import eu.kanade.tachiyomi.source.online.HttpSource
 import keiyoushi.annotation.Source
+import keiyoushi.network.get
+import keiyoushi.source.KeiSource
+import keiyoushi.utils.jsonInstance
 import keiyoushi.utils.parseAs
-import keiyoushi.utils.tryParse
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -20,19 +20,21 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.JsonElement
 import okhttp3.CacheControl
-import okhttp3.Call
 import okhttp3.HttpUrl
 import okhttp3.Interceptor
+import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.internal.http2.ErrorCode
 import okhttp3.internal.http2.StreamResetException
-import rx.Observable
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.security.MessageDigest
-import java.text.SimpleDateFormat
+import java.time.LocalDateTime
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import java.util.LinkedList
 import java.util.Locale
 import kotlin.math.min
@@ -40,7 +42,7 @@ import kotlin.time.Duration.Companion.seconds
 
 @Source
 @OptIn(ExperimentalUnsignedTypes::class)
-abstract class Hitomi : HttpSource() {
+abstract class Hitomi : KeiSource() {
 
     private val nozomiLang by lazy {
         when (lang) {
@@ -78,54 +80,44 @@ abstract class Hitomi : HttpSource() {
 
     private val ltnUrl = "https://ltn.$cdnDomain"
 
-    override val supportsLatest = true
-
-    override val client = network.client.newBuilder()
-        .addInterceptor(::imageUrlInterceptor)
-        .build()
-
-    override fun headersBuilder() = super.headersBuilder()
-        .set("referer", "$baseUrl/")
-        .set("origin", baseUrl)
-
-    override fun fetchPopularManga(page: Int): Observable<MangasPage> = Observable.fromCallable {
-        runBlocking {
-            val entries = getGalleryIDsFromNozomi("popular", "year", nozomiLang, page.nextPageRange())
-                .toMangaList()
-
-            MangasPage(entries, entries.size >= 24)
-        }
+    override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = apply {
+        addInterceptor(::imageUrlInterceptor)
     }
 
-    override fun fetchLatestUpdates(page: Int): Observable<MangasPage> = Observable.fromCallable {
-        runBlocking {
-            val entries = getGalleryIDsFromNozomi(null, "index", nozomiLang, page.nextPageRange())
-                .toMangaList()
+    override suspend fun getPopularManga(page: Int): MangasPage {
+        val entries = getGalleryIDsFromNozomi("popular", "year", nozomiLang, page.nextPageRange())
+            .toMangaList()
 
-            MangasPage(entries, entries.size >= 24)
-        }
+        return MangasPage(entries, entries.size >= 24)
     }
 
-    private lateinit var searchResponse: List<Int>
+    override suspend fun getLatestUpdates(page: Int): MangasPage {
+        val entries = getGalleryIDsFromNozomi(null, "index", nozomiLang, page.nextPageRange())
+            .toMangaList()
 
-    override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> = Observable.fromCallable {
-        runBlocking {
-            if (page == 1) {
-                searchResponse = hitomiSearch(
-                    query.trim(),
-                    filters,
-                    nozomiLang,
-                )
-            }
-
-            val end = min(page * 25, searchResponse.size)
-            val entries = searchResponse.subList((page - 1) * 25, end)
-                .toMangaList()
-            MangasPage(entries, end < searchResponse.size)
-        }
+        return MangasPage(entries, entries.size >= 24)
     }
 
-    override fun getFilterList() = getFilters()
+    private var searchResponse: List<Int>? = null
+
+    override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
+        if (page == 1) {
+            searchResponse = hitomiSearch(
+                query.trim(),
+                filters,
+                nozomiLang,
+            )
+        }
+
+        val res = searchResponse ?: return MangasPage(emptyList(), false)
+
+        val end = min(page * 25, res.size)
+        val entries = res.subList((page - 1) * 25, end)
+            .toMangaList()
+        return MangasPage(entries, end < res.size)
+    }
+
+    override fun getFilterList(data: JsonElement?) = getFilters()
 
     private fun Int.nextPageRange(): LongRange {
         val byteOffset = ((this - 1) * 25) * 4L
@@ -133,22 +125,20 @@ abstract class Hitomi : HttpSource() {
     }
 
     private suspend fun getRangedResponse(url: String, range: LongRange?): ByteArray {
-        val request = when (range) {
-            null -> GET(url, headers)
-
-            else -> {
-                val rangeHeaders = headersBuilder()
-                    .set("Range", "bytes=${range.first}-${range.last}")
-                    .build()
-
-                GET(url, rangeHeaders, CacheControl.FORCE_NETWORK)
-            }
+        val headers = if (range == null) {
+            headers
+        } else {
+            headersBuilder()
+                .set("Range", "bytes=${range.first}-${range.last}")
+                .build()
         }
+
+        val cacheControl = if (range != null) CacheControl.FORCE_NETWORK else CacheControl.Builder().build()
 
         val tries = 5
         repeat(tries) { attempt ->
             try {
-                return client.newCall(request).awaitSuccess().use { it.body.bytes() }
+                return client.get(url, headers, cacheControl).use { it.body.bytes() }
             } catch (e: StreamResetException) {
                 if (e.errorCode == ErrorCode.INTERNAL_ERROR) {
                     if (attempt == tries - 1) throw e // last attempt, rethrow
@@ -454,9 +444,9 @@ abstract class Hitomi : HttpSource() {
     }
 
     private val galleriesIndexVersion by lazy {
-        client.newCall(
-            GET("$ltnUrl/galleriesindex/version?_=${System.currentTimeMillis()}", headers),
-        ).execute().use { it.body.string() }
+        runBlocking {
+            client.get("$ltnUrl/galleriesindex/version?_=${System.currentTimeMillis()}").use { it.body.string() }
+        }
     }
 
     private data class Node(
@@ -523,8 +513,7 @@ abstract class Hitomi : HttpSource() {
         map { id ->
             async {
                 try {
-                    client.newCall(GET("$ltnUrl/galleries/$id.js", headers))
-                        .awaitSuccess()
+                    client.get("$ltnUrl/galleries/$id.js")
                         .parseScriptAs<Gallery>()
                         .toSManga()
                 } catch (e: IllegalArgumentException) {
@@ -572,52 +561,43 @@ abstract class Hitomi : HttpSource() {
         initialized = true
     }
 
-    override fun mangaDetailsRequest(manga: SManga): Request {
+    override suspend fun fetchMangaUpdate(
+        manga: SManga,
+        chapters: List<SChapter>,
+        fetchDetails: Boolean,
+        fetchChapters: Boolean,
+    ): SMangaUpdate {
         val id = manga.url
             .substringAfterLast("-")
             .substringBefore(".")
 
-        return GET("$ltnUrl/galleries/$id.js", headers)
-    }
+        val gallery = client.get("$ltnUrl/galleries/$id.js").parseScriptAs<Gallery>()
 
-    override fun mangaDetailsParse(response: Response) = runBlocking {
-        response.parseScriptAs<Gallery>().toSManga()
-    }
-
-    override fun getMangaUrl(manga: SManga) = baseUrl + manga.url
-
-    override fun chapterListRequest(manga: SManga) = mangaDetailsRequest(manga)
-
-    override fun chapterListParse(response: Response): List<SChapter> {
-        val gallery = response.parseScriptAs<Gallery>()
-
-        return listOf(
-            SChapter.create().apply {
-                name = "Chapter"
-                url = gallery.galleryurl
-                scanlator = gallery.type
-                date_upload = dateFormat.tryParse(gallery.date.substringBeforeLast("-"))
-            },
+        return SMangaUpdate(
+            manga = gallery.toSManga(),
+            chapters = listOf(
+                SChapter.create().apply {
+                    name = "Chapter"
+                    url = gallery.galleryurl
+                    scanlator = gallery.type
+                    date_upload = dateFormat.tryParse(gallery.date.substringBeforeLast("-"))
+                },
+            ),
         )
     }
 
-    private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH)
+    private val dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH)
 
-    override fun getChapterUrl(chapter: SChapter) = baseUrl + chapter.url
+    private fun DateTimeFormatter.tryParse(date: String?): Long = runCatching {
+        LocalDateTime.parse(date, this).toInstant(ZoneOffset.UTC).toEpochMilli()
+    }.getOrDefault(0L)
 
-    override fun pageListRequest(chapter: SChapter): Request {
+    override suspend fun getPageList(chapter: SChapter): List<Page> {
         val id = chapter.url
             .substringAfterLast("-")
             .substringBefore(".")
 
-        return GET("$ltnUrl/galleries/$id.js", headers)
-    }
-
-    override fun pageListParse(response: Response): List<Page> {
-        val gallery = response.parseScriptAs<Gallery>()
-        val id = gallery.galleryurl
-            .substringAfterLast("-")
-            .substringBefore(".")
+        val gallery = client.get("$ltnUrl/galleries/$id.js").parseScriptAs<Gallery>()
 
         return gallery.files.mapIndexed { idx, img ->
             // actual logic in imageUrlInterceptor
@@ -642,7 +622,10 @@ abstract class Hitomi : HttpSource() {
             .set("Referer", page.url)
             .build()
 
-        return GET(page.imageUrl!!, imageHeaders)
+        return Request.Builder()
+            .url(page.imageUrl!!)
+            .headers(imageHeaders)
+            .build()
     }
 
     private inline fun <reified T> Response.parseScriptAs(): T = parseAs<T> { it.substringAfter("var galleryinfo = ") }
@@ -651,14 +634,7 @@ abstract class Hitomi : HttpSource() {
         val body = use { it.body.string() }
         val transformed = transform(body)
 
-        return transformed.parseAs()
-    }
-
-    private suspend fun Call.awaitSuccess() = await().also {
-        require(it.isSuccessful) {
-            it.close()
-            "HTTP error ${it.code}"
-        }
+        return transformed.parseAs(jsonInstance)
     }
 
     // ------------------ gg.js ------------------
@@ -670,9 +646,7 @@ abstract class Hitomi : HttpSource() {
 
     private suspend fun refreshScript() = mutex.withLock {
         if (scriptLastRetrieval == null || (scriptLastRetrieval!! + 60000) < System.currentTimeMillis()) {
-            val ggScript = client.newCall(
-                GET("$ltnUrl/gg.js?_=${System.currentTimeMillis()}", headers),
-            ).awaitSuccess().use { it.body.string() }
+            val ggScript = client.get("$ltnUrl/gg.js?_=${System.currentTimeMillis()}").use { it.body.string() }
 
             subdomainOffsetDefault = Regex("var o = (\\d)").find(ggScript)!!.groupValues[1].toInt()
             val o = Regex("o = (\\d); break;").find(ggScript)!!.groupValues[1].toInt()
@@ -749,14 +723,6 @@ abstract class Hitomi : HttpSource() {
 
         return chain.proceed(newRequest)
     }
-
-    override fun popularMangaParse(response: Response) = throw UnsupportedOperationException()
-    override fun popularMangaRequest(page: Int) = throw UnsupportedOperationException()
-    override fun latestUpdatesRequest(page: Int) = throw UnsupportedOperationException()
-    override fun latestUpdatesParse(response: Response) = throw UnsupportedOperationException()
-    override fun searchMangaRequest(page: Int, query: String, filters: FilterList) = throw UnsupportedOperationException()
-    override fun searchMangaParse(response: Response) = throw UnsupportedOperationException()
-    override fun imageUrlParse(response: Response) = throw UnsupportedOperationException()
 }
 
 const val IMAGE_LOOPBACK_HOST = "127.0.0.1"

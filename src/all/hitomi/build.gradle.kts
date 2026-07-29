@@ -8,7 +8,7 @@ keiyoushi {
     name = "Hitomi"
     versionCode = 41
     contentWarning = ContentWarning.NSFW
-    libVersion = "1.4"
+    libVersion = "1.6"
 
     val languages = listOf(
         "all", "en", "id", "jv", "ca", "ceb", "cs", "da", "de", "et", "es", "eo",
