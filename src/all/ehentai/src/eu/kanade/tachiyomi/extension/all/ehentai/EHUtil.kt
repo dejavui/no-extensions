@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.extension.all.ehentai
 
+import java.util.Locale
 import kotlin.math.ln
 import kotlin.math.pow
 
@@ -32,14 +33,14 @@ operator fun StringBuilder.plusAssign(other: String) {
 }
 
 /**
- * Converts bytes into a human readable String
+ * Converts bytes into a human-readable String
  */
 fun humanReadableByteCount(bytes: Long, si: Boolean): String {
     val unit = if (si) 1000 else 1024
     if (bytes < unit) return "$bytes B"
     val exp = (ln(bytes.toDouble()) / ln(unit.toDouble())).toInt()
     val pre = (if (si) "kMGTPE" else "KMGTPE")[exp - 1] + if (si) "" else "i"
-    return String.format("%.1f %sB", bytes / unit.toDouble().pow(exp.toDouble()), pre)
+    return String.format(Locale.US, "%.1f %sB", bytes / unit.toDouble().pow(exp.toDouble()), pre)
 }
 
 private const val KB_FACTOR = 1000

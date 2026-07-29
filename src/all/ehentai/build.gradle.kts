@@ -8,10 +8,10 @@ keiyoushi {
     name = "E-Hentai"
     versionCode = 28
     contentWarning = ContentWarning.NSFW
-    libVersion = "1.4"
+    libVersion = "1.6"
 
     val languages = listOf(
-        "ja", "en", "zh", "nl", "fr", "de", "hu", "it", "ko", "pl", "pt-BR", "ru", "es", "th", "vi", "none", "other",
+        "all", "ja", "en", "zh", "nl", "fr", "de", "hu", "it", "ko", "pl", "pt-BR", "ru", "es", "th", "vi",
     )
 
     languages.forEach {
