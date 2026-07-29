@@ -1,6 +1,6 @@
 package eu.kanade.tachiyomi.extension.all.nhentai
 
-object NHUtils {
+object Utils {
     fun getArtists(data: Hentai): String {
         val artists = data.tags.filter { it.type == "artist" }
         return artists.joinToString { it.name }

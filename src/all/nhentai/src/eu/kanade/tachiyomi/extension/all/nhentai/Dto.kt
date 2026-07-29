@@ -39,7 +39,7 @@ class Hentai(
 ) {
     fun toSChapter() = SChapter.create().apply {
         name = "Chapter"
-        scanlator = NHUtils.getGroups(this@Hentai)
+        scanlator = Utils.getGroups(this@Hentai)
         date_upload = uploadDate * 1000
         url = "/g/$id/"
     }
