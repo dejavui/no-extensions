@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.extension.all.hitomi
 
 import android.util.Log
+import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -38,6 +39,7 @@ import java.time.format.DateTimeFormatter
 import java.util.LinkedList
 import java.util.Locale
 import kotlin.math.min
+import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
 
 @Source
@@ -98,21 +100,18 @@ abstract class Hitomi : KeiSource() {
         return MangasPage(entries, entries.size >= 24)
     }
 
-    private var searchResponse: List<Int>? = null
-
     override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
-        if (page == 1) {
-            searchResponse = hitomiSearch(
-                query.trim(),
-                filters,
-                nozomiLang,
-            )
-        }
+        val res = hitomiSearch(
+            query.trim(),
+            filters,
+            nozomiLang,
+        )
 
-        val res = searchResponse ?: return MangasPage(emptyList(), false)
+        val startIndex = (page - 1) * 25
+        if (startIndex >= res.size) return MangasPage(emptyList(), false)
 
         val end = min(page * 25, res.size)
-        val entries = res.subList((page - 1) * 25, end)
+        val entries = res.subList(startIndex, end)
             .toMangaList()
         return MangasPage(entries, end < res.size)
     }
@@ -275,7 +274,15 @@ abstract class Hitomi : KeiSource() {
         }
 
         if (random) {
-            results.toList().shuffled()
+            val filterKey = filters.joinToString {
+                when (it) {
+                    is Filter.Text -> it.state
+                    is Filter.Select<*> -> it.state.toString()
+                    else -> ""
+                }
+            }
+            val seed = (query + language + filterKey).hashCode().toLong()
+            results.toList().shuffled(Random(seed))
         } else {
             results.toList()
         }
@@ -346,7 +353,7 @@ abstract class Hitomi : KeiSource() {
         // we know total number so avoid internal resize overhead
         val galleryIDs = LinkedHashSet<Int>(numberOfGalleryIDs, 1.0f)
 
-        for (i in 0.until(numberOfGalleryIDs)) {
+        repeat(numberOfGalleryIDs) {
             galleryIDs.add(buffer.int)
         }
 
