@@ -41,7 +41,7 @@ abstract class TruyenQQComVN : KeiSource() {
     override suspend fun getPopularManga(page: Int): MangasPage {
         val url = "$baseUrl/truyen-hot" + if (page > 1) "?page=$page" else ""
 
-        return parseMangaPage(client.get(url, headers).asJsoup())
+        return parseMangaPage(client.get(url).asJsoup())
     }
 
     // =============================== Latest ===============================
@@ -49,7 +49,7 @@ abstract class TruyenQQComVN : KeiSource() {
     override suspend fun getLatestUpdates(page: Int): MangasPage {
         val url = "$baseUrl/truyen-moi" + if (page > 1) "?page=$page" else ""
 
-        return parseMangaPage(client.get(url, headers).asJsoup())
+        return parseMangaPage(client.get(url).asJsoup())
     }
 
     // =============================== Search ===============================
@@ -63,14 +63,14 @@ abstract class TruyenQQComVN : KeiSource() {
                     if (page > 1) addQueryParameter("page", page.toString())
                 }
                 .build()
-            return parseMangaPage(client.get(url, headers).asJsoup())
+            return parseMangaPage(client.get(url).asJsoup())
         }
 
         val genreFilter = filters.filterIsInstance<GenreFilter>().firstOrNull()
         if (genreFilter != null && genreFilter.state != 0) {
             val genreId = genreFilter.values[genreFilter.state].id
             val url = "$baseUrl/the-loai/$genreId" + if (page > 1) "?page=$page" else ""
-            return parseMangaPage(client.get(url, headers).asJsoup())
+            return parseMangaPage(client.get(url).asJsoup())
         }
 
         return getLatestUpdates(page)
@@ -170,7 +170,7 @@ abstract class TruyenQQComVN : KeiSource() {
     // =============================== Pages ================================
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
-        client.get(getChapterUrl(chapter), headers).use { response ->
+        client.get(getChapterUrl(chapter)).use { response ->
             return response.asJsoup()
                 .select(".inner img.lazy")
                 .mapIndexed { idx, it ->
