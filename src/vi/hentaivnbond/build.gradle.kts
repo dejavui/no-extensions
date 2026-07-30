@@ -6,7 +6,7 @@ plugins {
 
 keiyoushi {
     name = "HentaiVNBond"
-    versionCode = 2
+    versionCode = 3
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"
     theme = "madara"
@@ -14,7 +14,7 @@ keiyoushi {
     source {
         lang = "vi"
         baseUrl {
-            custom("https://hentaivn.cfd")
+            custom("https://hentaivn.tax")
         }
     }
 }
