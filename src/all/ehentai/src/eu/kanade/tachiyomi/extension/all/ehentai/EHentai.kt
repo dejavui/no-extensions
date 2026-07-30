@@ -23,6 +23,7 @@ import keiyoushi.utils.getPreferences
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonElement
 import okhttp3.CookieJar
+import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.net.URLEncoder
@@ -104,9 +105,13 @@ abstract class EHentai :
             chain.proceed(newRequest)
         }
         addInterceptor { chain ->
-            val newReq = chain.request().newBuilder()
+            val request = chain.request()
+            val currentBaseUrl = baseUrl
+            val newReq = request.newBuilder()
                 .removeHeader("Cookie")
                 .addHeader("Cookie", cookiesHeader)
+                .header("Referer", "$currentBaseUrl/")
+                .header("Origin", currentBaseUrl)
                 .build()
 
             chain.proceed(newReq)
@@ -197,6 +202,14 @@ abstract class EHentai :
         return result.mangasPage
     }
 
+    override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
+        if ((url.host == "e-hentai.org" || url.host == "exhentai.org") && url.pathSegments.getOrNull(0) == "g") {
+            val response = client.get(url)
+            return Parser.parseDetails(response)
+        }
+        return null
+    }
+
     // Details + Chapters
 
     override suspend fun fetchMangaUpdate(
@@ -256,8 +269,7 @@ abstract class EHentai :
 
     private fun languageTag(enforceLanguageFilter: Boolean = false): String = if (lang != "all" && (enforceLanguageFilter || getEnforceLanguagePref())) "language:$ehLang" else ""
 
-    private val cookiesHeader by lazy {
-        val cookies = mutableMapOf<String, String>()
+    private val cookiesHeader get() = buildMap {
         val settings = mutableListOf("prn_n")
         if (lang != "all") {
             settings += "xl_" + languageMappings.filter { it.first != ehLang }
@@ -265,15 +277,13 @@ abstract class EHentai :
                 .joinToString("x")
         }
 
-        cookies["uconfig"] = settings.joinToString("-")
-        cookies["nw"] = "1"
-        cookies["ipb_member_id"] = memberId
-        cookies["ipb_pass_hash"] = passHash
-        cookies["igneous"] = igneous
-
-        cookies.entries.joinToString(separator = "; ", postfix = ";") {
-            "${URLEncoder.encode(it.key, "UTF-8")}=${URLEncoder.encode(it.value, "UTF-8")}"
-        }
+        put("uconfig", settings.joinToString("-"))
+        put("nw", "1")
+        put("ipb_member_id", memberId)
+        put("ipb_pass_hash", passHash)
+        put("igneous", igneous)
+    }.entries.joinToString(separator = "; ", postfix = ";") {
+        "${URLEncoder.encode(it.key, "UTF-8")}=${URLEncoder.encode(it.value, "UTF-8")}"
     }
 
     // Filters
