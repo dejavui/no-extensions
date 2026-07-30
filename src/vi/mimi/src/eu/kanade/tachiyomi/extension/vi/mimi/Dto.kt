@@ -3,12 +3,11 @@ package eu.kanade.tachiyomi.extension.vi.mimi
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
-import keiyoushi.utils.tryParse
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import java.text.SimpleDateFormat
-import java.util.Locale
-import java.util.TimeZone
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 @Serializable
 class DataDto(
@@ -92,7 +91,18 @@ class ChapterDto(
     }
 }
 
-private val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.ROOT).apply { timeZone = TimeZone.getTimeZone("Asia/Ho_Chi_Minh") }
+private val dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")
+private val vnZone = ZoneId.of("Asia/Ho_Chi_Minh")
+
+private fun DateTimeFormatter.tryParse(date: String?): Long {
+    if (date.isNullOrBlank()) return 0L
+    return runCatching {
+        LocalDateTime.parse(date, this)
+            .atZone(vnZone)
+            .toInstant()
+            .toEpochMilli()
+    }.getOrDefault(0L)
+}
 
 @Serializable
 class PageDto(
