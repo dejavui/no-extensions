@@ -205,7 +205,7 @@ abstract class EHentai :
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        val response = client.get("$baseUrl${manga.url}")
+        val response = client.get(getMangaUrl(manga))
 
         return SMangaUpdate(
             manga = Parser.parseDetails(response),
