@@ -223,7 +223,7 @@ abstract class EHentai :
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
         val pages = mutableListOf<String>()
-        var nextUrl: String? = "$baseUrl${chapter.url}"
+        var nextUrl: String? = getChapterUrl(chapter)
 
         while (nextUrl != null) {
             val doc = client.get(nextUrl).asJsoup()
