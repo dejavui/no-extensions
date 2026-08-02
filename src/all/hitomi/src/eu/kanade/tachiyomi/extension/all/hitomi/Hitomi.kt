@@ -40,6 +40,7 @@ import java.util.LinkedList
 import java.util.Locale
 import kotlin.math.min
 import kotlin.random.Random
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 
 @Source
@@ -452,7 +453,7 @@ abstract class Hitomi : KeiSource() {
 
     private val galleriesIndexVersion by lazy {
         runBlocking {
-            client.get("$ltnUrl/galleriesindex/version?_=${System.currentTimeMillis()}").use { it.body.string() }
+            client.get("$ltnUrl/galleriesindex/version?_=${Clock.System.now().toEpochMilliseconds()}").use { it.body.string() }
         }
     }
 
@@ -652,8 +653,8 @@ abstract class Hitomi : KeiSource() {
     private var commonImageId = ""
 
     private suspend fun refreshScript() = mutex.withLock {
-        if (scriptLastRetrieval == null || (scriptLastRetrieval!! + 60000) < System.currentTimeMillis()) {
-            val ggScript = client.get("$ltnUrl/gg.js?_=${System.currentTimeMillis()}").use { it.body.string() }
+        if (scriptLastRetrieval == null || (scriptLastRetrieval!! + 60000) < Clock.System.now().toEpochMilliseconds()) {
+            val ggScript = client.get("$ltnUrl/gg.js?_=${Clock.System.now().toEpochMilliseconds()}").use { it.body.string() }
 
             subdomainOffsetDefault = Regex("var o = (\\d)").find(ggScript)!!.groupValues[1].toInt()
             val o = Regex("o = (\\d); break;").find(ggScript)!!.groupValues[1].toInt()
@@ -666,7 +667,7 @@ abstract class Hitomi : KeiSource() {
 
             commonImageId = Regex("b: '(.+)'").find(ggScript)!!.groupValues[1]
 
-            scriptLastRetrieval = System.currentTimeMillis()
+            scriptLastRetrieval = Clock.System.now().toEpochMilliseconds()
         }
     }
 
