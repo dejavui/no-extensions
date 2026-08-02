@@ -18,7 +18,6 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonElement
@@ -46,6 +45,12 @@ import kotlin.time.Duration.Companion.seconds
 @Source
 @OptIn(ExperimentalUnsignedTypes::class)
 abstract class Hitomi : KeiSource() {
+
+    // properties
+
+    private val cdnDomain = "gold-usergeneratedcontent.net"
+
+    private val ltnUrl = "https://ltn.$cdnDomain"
 
     private val nozomiLang by lazy {
         when (lang) {
@@ -79,9 +84,18 @@ abstract class Hitomi : KeiSource() {
         }
     }
 
-    private val cdnDomain = "gold-usergeneratedcontent.net"
+    private val dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH)
 
-    private val ltnUrl = "https://ltn.$cdnDomain"
+    private var galleriesIndexVersion: String? = null
+    private val versionMutex = Mutex()
+
+    private var scriptLastRetrieval: Long? = null
+    private val scriptMutex = Mutex()
+
+    @Volatile
+    private var scriptData: ScriptData? = null
+
+    // overrides
 
     override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = apply {
         addInterceptor(::imageUrlInterceptor)
@@ -117,7 +131,77 @@ abstract class Hitomi : KeiSource() {
         return MangasPage(entries, end < res.size)
     }
 
+    override suspend fun fetchMangaUpdate(
+        manga: SManga,
+        chapters: List<SChapter>,
+        fetchDetails: Boolean,
+        fetchChapters: Boolean,
+    ): SMangaUpdate {
+        val id = manga.url
+            .substringAfterLast("-")
+            .substringBefore(".")
+
+        val gallery = client.get("$ltnUrl/galleries/$id.js").parseScriptAs<Gallery>()
+
+        return SMangaUpdate(
+            manga = gallery.toSManga(),
+            chapters = listOf(
+                SChapter.create().apply {
+                    name = "Chapter"
+                    url = gallery.galleryurl
+                    scanlator = gallery.type
+                    date_upload = dateFormat.tryParse(gallery.date.substringBeforeLast("-"))
+                },
+            ),
+        )
+    }
+
+    override suspend fun getPageList(chapter: SChapter): List<Page> {
+        refreshScript()
+
+        val id = chapter.url
+            .substringAfterLast("-")
+            .substringBefore(".")
+
+        val gallery = client.get("$ltnUrl/galleries/$id.js").parseScriptAs<Gallery>()
+
+        return gallery.files.mapIndexed { idx, img ->
+            // actual logic in imageUrlInterceptor
+            val imageUrl = HttpUrl.Builder().apply {
+                scheme("https")
+                host(IMAGE_LOOPBACK_HOST)
+                addQueryParameter(IMAGE_GIF, img.isGif.toString())
+                fragment(img.hash)
+            }.toString()
+
+            Page(
+                idx,
+                "$baseUrl/reader/$id.html",
+                imageUrl,
+            )
+        }
+    }
+
+    override fun imageRequest(page: Page): Request {
+        val imageHeaders = headersBuilder()
+            .set("Accept", "image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+            .set("Referer", page.url)
+            .build()
+
+        return Request.Builder()
+            .url(page.imageUrl!!)
+            .headers(imageHeaders)
+            .build()
+    }
+
     override fun getFilterList(data: JsonElement?) = getFilters()
+
+    // core logic
+
+    private suspend fun getGalleriesIndexVersion(): String = versionMutex.withLock {
+        galleriesIndexVersion ?: client.get("$ltnUrl/galleriesindex/version?_=${Clock.System.now().toEpochMilliseconds()}").use { it.body.string() }
+            .also { galleriesIndexVersion = it }
+    }
 
     private fun Int.nextPageRange(): LongRange {
         val byteOffset = ((this - 1) * 25) * 4L
@@ -164,7 +248,7 @@ abstract class Hitomi : KeiSource() {
         val terms = query
             .trim()
             .lowercase()
-            .split(Regex("\\s+"))
+            .split(whitespaceRegex)
             .toMutableList()
 
         filters.forEach {
@@ -327,7 +411,8 @@ abstract class Hitomi : KeiSource() {
     }
 
     private suspend fun getGalleryIDsFromData(data: Pair<Long, Int>): Set<Int> {
-        val url = "$ltnUrl/galleriesindex/galleries.$galleriesIndexVersion.data"
+        val version = getGalleriesIndexVersion()
+        val url = "$ltnUrl/galleriesindex/galleries.$version.data"
         val (offset, length) = data
         require(length in 1..100000000) {
             "Length $length is too long"
@@ -335,10 +420,9 @@ abstract class Hitomi : KeiSource() {
 
         val inbuf = getRangedResponse(url, offset.until(offset + length))
 
-        val buffer =
-            ByteBuffer
-                .wrap(inbuf)
-                .order(ByteOrder.BIG_ENDIAN)
+        val buffer = ByteBuffer
+            .wrap(inbuf)
+            .order(ByteOrder.BIG_ENDIAN)
 
         val numberOfGalleryIDs = buffer.int
 
@@ -451,18 +535,6 @@ abstract class Hitomi : KeiSource() {
         return nozomi
     }
 
-    private val galleriesIndexVersion by lazy {
-        runBlocking {
-            client.get("$ltnUrl/galleriesindex/version?_=${Clock.System.now().toEpochMilliseconds()}").use { it.body.string() }
-        }
-    }
-
-    private data class Node(
-        val keys: List<UByteArray>,
-        val datas: List<Pair<Long, Int>>,
-        val subNodeAddresses: List<Long>,
-    )
-
     private fun decodeNode(data: ByteArray): Node {
         val buffer = ByteBuffer
             .wrap(data)
@@ -506,7 +578,8 @@ abstract class Hitomi : KeiSource() {
     }
 
     private suspend fun getGalleryNodeAtAddress(address: Long): Node {
-        val url = "$ltnUrl/galleriesindex/galleries.$galleriesIndexVersion.index"
+        val version = getGalleriesIndexVersion()
+        val url = "$ltnUrl/galleriesindex/galleries.$version.index"
 
         val nodedata = getRangedResponse(url, address.until(address + 464))
 
@@ -516,6 +589,8 @@ abstract class Hitomi : KeiSource() {
     private fun hashTerm(term: String): UByteArray = sha256(term.toByteArray()).copyOfRange(0, 4).toUByteArray()
 
     private fun sha256(data: ByteArray): ByteArray = MessageDigest.getInstance("SHA-256").digest(data)
+
+    // gallery & manga logic
 
     private suspend fun Collection<Int>.toMangaList() = coroutineScope {
         map { id ->
@@ -535,7 +610,7 @@ abstract class Hitomi : KeiSource() {
         }.awaitAll().filterNotNull()
     }
 
-    private fun Gallery.toSManga() = SManga.create().apply {
+    private fun Gallery.toSManga(): SManga = SManga.create().apply {
         title = this@toSManga.title
         url = galleryurl
         author = groups?.joinToString { it.formatted } ?: artists?.joinToString { it.formatted }
@@ -569,72 +644,11 @@ abstract class Hitomi : KeiSource() {
         initialized = true
     }
 
-    override suspend fun fetchMangaUpdate(
-        manga: SManga,
-        chapters: List<SChapter>,
-        fetchDetails: Boolean,
-        fetchChapters: Boolean,
-    ): SMangaUpdate {
-        val id = manga.url
-            .substringAfterLast("-")
-            .substringBefore(".")
-
-        val gallery = client.get("$ltnUrl/galleries/$id.js").parseScriptAs<Gallery>()
-
-        return SMangaUpdate(
-            manga = gallery.toSManga(),
-            chapters = listOf(
-                SChapter.create().apply {
-                    name = "Chapter"
-                    url = gallery.galleryurl
-                    scanlator = gallery.type
-                    date_upload = dateFormat.tryParse(gallery.date.substringBeforeLast("-"))
-                },
-            ),
-        )
-    }
-
-    private val dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH)
+    // helpers
 
     private fun DateTimeFormatter.tryParse(date: String?): Long = runCatching {
         LocalDateTime.parse(date, this).toInstant(ZoneOffset.UTC).toEpochMilli()
     }.getOrDefault(0L)
-
-    override suspend fun getPageList(chapter: SChapter): List<Page> {
-        val id = chapter.url
-            .substringAfterLast("-")
-            .substringBefore(".")
-
-        val gallery = client.get("$ltnUrl/galleries/$id.js").parseScriptAs<Gallery>()
-
-        return gallery.files.mapIndexed { idx, img ->
-            // actual logic in imageUrlInterceptor
-            val imageUrl = HttpUrl.Builder().apply {
-                scheme("https")
-                host(IMAGE_LOOPBACK_HOST)
-                addQueryParameter(IMAGE_GIF, img.isGif.toString())
-                fragment(img.hash)
-            }.toString()
-
-            Page(
-                idx,
-                "$baseUrl/reader/$id.html",
-                imageUrl,
-            )
-        }
-    }
-
-    override fun imageRequest(page: Page): Request {
-        val imageHeaders = headersBuilder()
-            .set("Accept", "image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
-            .set("Referer", page.url)
-            .build()
-
-        return Request.Builder()
-            .url(page.imageUrl!!)
-            .headers(imageHeaders)
-            .build()
-    }
 
     private inline fun <reified T> Response.parseScriptAs(): T = parseAs<T> { it.substringAfter("var galleryinfo = ") }
 
@@ -645,52 +659,53 @@ abstract class Hitomi : KeiSource() {
         return transformed.parseAs(jsonInstance)
     }
 
+    // image & page logic
+
     // ------------------ gg.js ------------------
-    private var scriptLastRetrieval: Long? = null
-    private val mutex = Mutex()
-    private var subdomainOffsetDefault = 0
-    private val subdomainOffsetMap = mutableMapOf<Int, Int>()
-    private var commonImageId = ""
-
-    private suspend fun refreshScript() = mutex.withLock {
-        if (scriptLastRetrieval == null || (scriptLastRetrieval!! + 60000) < Clock.System.now().toEpochMilliseconds()) {
-            val ggScript = client.get("$ltnUrl/gg.js?_=${Clock.System.now().toEpochMilliseconds()}").use { it.body.string() }
-
-            subdomainOffsetDefault = Regex("var o = (\\d)").find(ggScript)!!.groupValues[1].toInt()
-            val o = Regex("o = (\\d); break;").find(ggScript)!!.groupValues[1].toInt()
-
-            subdomainOffsetMap.clear()
-            Regex("case (\\d+):").findAll(ggScript).forEach {
-                val case = it.groupValues[1].toInt()
-                subdomainOffsetMap[case] = o
-            }
-
-            commonImageId = Regex("b: '(.+)'").find(ggScript)!!.groupValues[1]
-
-            scriptLastRetrieval = Clock.System.now().toEpochMilliseconds()
+    private suspend fun refreshScript() = scriptMutex.withLock {
+        val now = Clock.System.now().toEpochMilliseconds()
+        if (scriptData != null && scriptLastRetrieval != null && (scriptLastRetrieval!! + 60000) >= now) {
+            return@withLock
         }
+
+        val ggScript = client.get("$ltnUrl/gg.js?_=$now").use { it.body.string() }
+
+        val subdomainOffsetDefault = ggScriptOffsetRegex.find(ggScript)!!.groupValues[1].toInt()
+        val o = ggScriptBreakRegex.find(ggScript)!!.groupValues[1].toInt()
+
+        val subdomainOffsetMap = linkedMapOf<Int, Int>()
+        ggScriptCaseRegex.findAll(ggScript).forEach {
+            val case = it.groupValues[1].toInt()
+            subdomainOffsetMap[case] = o
+        }
+
+        val commonImageId = ggScriptCommonIdRegex.find(ggScript)!!.groupValues[1]
+
+        scriptData = ScriptData(
+            subdomainOffsetDefault = subdomainOffsetDefault,
+            subdomainOffsetMap = subdomainOffsetMap,
+            commonImageId = commonImageId,
+        )
+        scriptLastRetrieval = now
     }
 
     // m <-- gg.js
-    private suspend fun subdomainOffset(imageId: Int): Int {
-        refreshScript()
-        return subdomainOffsetMap[imageId] ?: subdomainOffsetDefault
+    private fun cachedSubdomainOffset(imageId: Int): Int {
+        val data = scriptData ?: return 0
+        return data.subdomainOffsetMap[imageId] ?: data.subdomainOffsetDefault
     }
 
     // b <-- gg.js
-    private suspend fun commonImageId(): String {
-        refreshScript()
-        return commonImageId
-    }
+    private fun cachedCommonImageId(): String = scriptData?.commonImageId.orEmpty()
 
     // s <-- gg.js
     private fun imageIdFromHash(hash: String): Int {
-        val match = Regex("(..)(.)$").find(hash)
+        val match = imageIdFromHashRegex.find(hash)
         return match!!.groupValues.let { it[2] + it[1] }.toInt(16)
     }
 
     // real_full_path_from_hash <-- common.js
-    private fun thumbPathFromHash(hash: String): String = hash.replace(Regex("""^.*(..)(.)$"""), "$2/$1")
+    private fun thumbPathFromHash(hash: String): String = hash.replace(thumbPathRegex, "$2/$1")
 
     private fun imageUrlInterceptor(chain: Interceptor.Chain): Response {
         val request = chain.request()
@@ -708,14 +723,14 @@ abstract class Hitomi : KeiSource() {
             "avif"
         }
         val imageId = imageIdFromHash(hash)
-        val subDomainOffset = runBlocking { subdomainOffset(imageId) }
+        val subDomainOffset = cachedSubdomainOffset(imageId)
 
         val imageUrl = if (isThumbnail) {
             val subDomain = "${'a' + subDomainOffset}tn"
 
             "https://$subDomain.$cdnDomain/${type}bigtn/${thumbPathFromHash(hash)}/$hash.$type"
         } else {
-            val commonId = runBlocking { commonImageId() }
+            val commonId = cachedCommonImageId()
             val subDomain = if (isGif) {
                 "w${subDomainOffset + 1}"
             } else {
@@ -731,8 +746,32 @@ abstract class Hitomi : KeiSource() {
 
         return chain.proceed(newRequest)
     }
+
+    // data structures
+
+    private class Node(
+        val keys: List<UByteArray>,
+        val datas: List<Pair<Long, Int>>,
+        val subNodeAddresses: List<Long>,
+    )
+
+    private class ScriptData(
+        val subdomainOffsetDefault: Int,
+        val subdomainOffsetMap: Map<Int, Int>,
+        val commonImageId: String,
+    )
 }
+
+// constants & regexes
 
 const val IMAGE_LOOPBACK_HOST = "127.0.0.1"
 const val IMAGE_THUMBNAIL = "is_thumbnail"
 const val IMAGE_GIF = "is_gif"
+
+private val whitespaceRegex = Regex("\\s+")
+private val ggScriptOffsetRegex = Regex("var o = (\\d)")
+private val ggScriptBreakRegex = Regex("o = (\\d); break;")
+private val ggScriptCaseRegex = Regex("case (\\d+):")
+private val ggScriptCommonIdRegex = Regex("b: '(.+)'")
+private val imageIdFromHashRegex = Regex("(..)(.)$")
+private val thumbPathRegex = Regex("""^.*(..)(.)$""")
