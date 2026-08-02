@@ -20,7 +20,9 @@ import keiyoushi.annotation.Source
 import keiyoushi.network.get
 import keiyoushi.source.KeiSource
 import keiyoushi.utils.getPreferences
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonElement
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
@@ -156,7 +158,6 @@ abstract class EHentai :
         }
 
         val enforceLanguageFilter = filters.find { it is EnforceLanguageFilter }?.state == true
-        val uri = Uri.parse("$baseUrl$QUERY_PREFIX").buildUpon()
         var modifiedQuery = when {
             !isLangNatural() -> query
             query.isBlank() -> languageTag(enforceLanguageFilter)
@@ -165,21 +166,24 @@ abstract class EHentai :
         filters.filterIsInstance<TextFilter>().forEach { filter ->
             if (filter.state.isNotEmpty()) {
                 val splitted = filter.state.split(",").filter(String::isNotBlank)
-                if (splitted.size < 2 && filter.type != "tags") {
-                    modifiedQuery += " ${filter.type}:\"${filter.state.replace(" ", "+")}\""
-                } else {
-                    splitted.forEach { tag ->
-                        val trimmed = tag.trim().lowercase()
-                        modifiedQuery += if (trimmed.startsWith('-')) {
-                            " -${filter.type}:\"${trimmed.removePrefix("-").replace(" ", "+")}\""
-                        } else {
-                            " ${filter.type}:\"${trimmed.replace(" ", "+")}\""
-                        }
+                splitted.forEach { tag ->
+                    val trimmed = tag.trim().lowercase()
+                    val tagName = trimmed.removePrefix("-")
+                    val isExclude = trimmed.startsWith('-')
+                    modifiedQuery += if (isExclude) {
+                        " -${filter.type}:\"$tagName\""
+                    } else {
+                        " ${filter.type}:\"$tagName\""
                     }
                 }
             }
         }
-        uri.appendQueryParameter("f_search", modifiedQuery)
+        val baseSearchUrl = "$baseUrl$QUERY_PREFIX&f_search=${
+            withContext(Dispatchers.IO) {
+                URLEncoder.encode(modifiedQuery, "UTF-8")
+            }
+        }"
+        val uri = Uri.parse(baseSearchUrl).buildUpon()
 
         filters.filterIsInstance<GenreGroup>().firstOrNull()?.state?.let { options ->
             if (options.none { it.state }) {

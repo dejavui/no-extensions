@@ -32,8 +32,15 @@ fun ExGalleryMetadata.copyTo(manga: SManga) {
     tags[EH_AUTHOR_NAMESPACE]?.let {
         if (it.isNotEmpty()) manga.author = it.joinToString(transform = Tag::name)
     }
-    // Set genre
-    genre?.let { manga.genre = it }
+    // Build genre from all tag namespaces
+    // Format: "namespace:tagname" so each chip is distinct and clickable as a valid EH search query.
+    val tagGenres = tags
+        .flatMap { (namespace, tagList) ->
+            tagList.map { tag -> "$namespace:${tag.name}" }
+        }
+        .sorted()
+
+    manga.genre = tagGenres.joinToString().takeIf(String::isNotBlank)
 
     // Try to automatically identify if it is ongoing
     manga.status = SManga.COMPLETED
@@ -55,6 +62,7 @@ fun ExGalleryMetadata.copyTo(manga: SManga) {
         detailsDesc += "Posted: $dateStr\n"
     }
     visible?.let { detailsDesc += "Visible: $it\n" }
+    category?.let { detailsDesc += "Category: $it\n" }
     language?.let {
         detailsDesc += "Language: $it"
         if (translated == true) detailsDesc += " TR"
@@ -69,18 +77,7 @@ fun ExGalleryMetadata.copyTo(manga: SManga) {
         detailsDesc += "\n"
     }
 
-    val tagsDesc = buildTagsDescription(this)
-
-    manga.description = listOf(titleDesc.toString(), detailsDesc.toString(), tagsDesc.toString())
+    manga.description = listOf(titleDesc.toString(), detailsDesc.toString())
         .filter(String::isNotBlank)
         .joinToString(separator = "\n")
-}
-
-private fun buildTagsDescription(metadata: ExGalleryMetadata) = StringBuilder("Tags:\n").apply {
-    metadata.tags.forEach { (namespace, tags) ->
-        if (tags.isNotEmpty()) {
-            val joinedTags = tags.joinToString(separator = " ", transform = { "<${it.name}>" })
-            this += "▪ $namespace: $joinedTags\n"
-        }
-    }
 }
