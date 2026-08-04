@@ -6,7 +6,7 @@ plugins {
 
 keiyoushi {
     name = "Cuu Truyen"
-    versionCode = 2
+    versionCode = 3
     contentWarning = ContentWarning.MIXED
     libVersion = "1.6"
 
@@ -18,5 +18,11 @@ keiyoushi {
                 "https://hetcuutruyen.net",
             )
         }
+    }
+
+    deeplink {
+        host("cuutruyen.net")
+        host("hetcuutruyen.net")
+        path("/mangas/..*")
     }
 }

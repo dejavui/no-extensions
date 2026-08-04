@@ -63,7 +63,7 @@ class MangaDto(
 
     private val tags: List<TagDto>? = null,
 ) {
-    fun toSManga(coverQuality: String? = null): SManga = SManga.create().apply {
+    fun toSManga(coverQuality: String? = null, cdnUrl: String): SManga = SManga.create().apply {
         url = "/mangas/$id"
         title = name ?: ""
         author = this@MangaDto.author?.name ?: authorName
@@ -78,8 +78,8 @@ class MangaDto(
         }
 
         thumbnail_url = when (coverQuality) {
-            "cover_mobile_url" -> coverMobileUrl
-            else -> coverUrl
+            "cover_mobile_url" -> coverMobileUrl?.replace("https://storage-ct.lrclib.net", cdnUrl)
+            else -> coverUrl?.replace("https://storage-ct.lrclib.net", cdnUrl)
         }
         tags?.map { it.name }?.let {
             genre = it.joinToString()
@@ -123,11 +123,13 @@ class PageDto(
     private val order: Int,
     private val status: String,
     @SerialName("image_url")
-    private val imageUrl: String,
+    private val imageUrl: String? = null,
+    @SerialName("image_path")
+    private val imagePath: String? = null,
     @SerialName("drm_data")
     private val drmData: String,
 ) {
-    fun toPage(): Page {
+    fun toPage(cdnUrl: String): Page {
         if (status != "processed") {
             val message = when (status) {
                 "enqueued" -> "Đang đợi xử lý hình ảnh, vui lòng chờ ít phút."
@@ -138,8 +140,7 @@ class PageDto(
 
             throw Exception(message)
         }
-
-        val url = imageUrl.toHttpUrl().newBuilder()
+        val url = (cdnUrl + imagePath).toHttpUrl().newBuilder()
             .fragment("${ImageInterceptor.DRM_DATA_KEY}=${drmData.replace("\n", "")}")
             .build()
             .toString()

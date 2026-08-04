@@ -33,6 +33,8 @@ abstract class CuuTruyen :
 
     private val apiUrl: String get() = "$baseUrl/api/v2"
 
+    private val cdnUrl: String get() = "https://storage-bravo.cuutruyen.net"
+
     override fun OkHttpClient.Builder.configureClient() = apply {
         addInterceptor(ImageInterceptor())
         addInterceptor(::thumbnailIntercept)
@@ -127,7 +129,7 @@ abstract class CuuTruyen :
 
     private fun parseMangaList(data: List<MangaDto>, metadata: PaginationMetadataDto?): MangasPage {
         val coverKey = preferences.coverQuality
-        val manga = data.map { it.toSManga(coverKey) }
+        val manga = data.map { it.toSManga(coverKey, cdnUrl) }
         val hasNextPage = metadata?.let { it.currentPage < it.totalPages } ?: false
 
         data.forEach {
@@ -141,9 +143,10 @@ abstract class CuuTruyen :
     }
 
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
-        if (url.host == baseUrl.toHttpUrl().host) {
-            client.get("$apiUrl${url.encodedPath}").use { response ->
-                return response.parseAs<ResponseDto<MangaDto>>().data.toSManga(preferences.coverQuality)
+        if (url.host == baseUrl.toHttpUrl().host && url.pathSegments.size >= 2 && url.pathSegments[0] == "mangas") {
+            val mangaId = url.pathSegments[1]
+            client.get("$apiUrl/mangas/$mangaId").use { response ->
+                return response.parseAs<ResponseDto<MangaDto>>().data.toSManga(preferences.coverQuality, cdnUrl)
             }
         }
         return null
@@ -158,7 +161,7 @@ abstract class CuuTruyen :
         fetchChapters: Boolean,
     ): SMangaUpdate {
         val details = client.get("$apiUrl${manga.url}").use { response ->
-            response.parseAs<ResponseDto<MangaDto>>().data.toSManga(preferences.coverQuality)
+            response.parseAs<ResponseDto<MangaDto>>().data.toSManga(preferences.coverQuality, cdnUrl)
         }
 
         val chaptersList = client.get("$apiUrl${manga.url}/chapters", headers, CacheControl.FORCE_NETWORK).use { response ->
@@ -181,7 +184,7 @@ abstract class CuuTruyen :
         }.build()
 
         client.get(url, headers, CacheControl.FORCE_NETWORK).use { response ->
-            return response.parseAs<ResponseDto<ChapterDto>>().data.pages!!.map { it.toPage() }
+            return response.parseAs<ResponseDto<ChapterDto>>().data.pages!!.map { it.toPage(cdnUrl) }
         }
     }
 
