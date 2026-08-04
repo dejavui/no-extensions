@@ -4,11 +4,11 @@
 
 | Build                                                                                                                                                                               | Need Help?                                                                                                                                              |
 |-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
-
+| [![CI](https://github.com/dejavui/no-extensions/actions/workflows/build_push.yml/badge.svg)](https://github.com/dejavui/no-extensions/actions/workflows/build_push.yml) |  |
 ## Usage
 **If you are new to repository/extensions, please read the [Keiyoushi Getting Started guide](https://dejavui.github.io/docs/guides/getting-started#adding-the-extension-repo) first.**
 
-* You can add our repo by visiting the [Keiyoushi Website](https://dejavui.github.io/add-repo)
+* You can add our repo by visiting the [Dejavui Website](https://dejavui.github.io/add-repo)
 * Otherwise, copy & paste the following URL: https://github.com/dejavui/not-extensions/raw/repo/index.pb
 
 ## Requests
