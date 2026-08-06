@@ -12,6 +12,7 @@ import keiyoushi.network.get
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
 import keiyoushi.utils.parseAs
+import keiyoushi.utils.tryParseDateTime
 import kotlinx.serialization.json.JsonElement
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -20,7 +21,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Response
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
-import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -36,6 +36,7 @@ abstract class GocTruyenTranh : KeiSource() {
     private val searchUrl get() = "$baseUrl/baseapi/comics/filterComic"
 
     private val dateFormat = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss", Locale.US)
+    private val dateZone = ZoneId.of("Asia/Ho_Chi_Minh")
 
     override fun OkHttpClient.Builder.configureClient() = apply {
         addInterceptor { chain ->
@@ -209,17 +210,10 @@ abstract class GocTruyenTranh : KeiSource() {
             "phút trước" -> number.minutes
             "giờ trước" -> number.hours
             "ngày trước" -> number.days
-            else -> return dateFormat.tryParse(date)
+            else -> return dateFormat.tryParseDateTime(date, dateZone)
         }
         (now - duration).toEpochMilliseconds()
     }.getOrNull() ?: 0L
-
-    private fun DateTimeFormatter.tryParse(date: String): Long = runCatching {
-        LocalDateTime.parse(date, this)
-            .atZone(ZoneId.of("Asia/Ho_Chi_Minh"))
-            .toInstant()
-            .toEpochMilli()
-    }.getOrDefault(0L)
 
     private fun getImgUrl(element: Element?): String? {
         val url = element?.absUrl("src")?.takeIf { it.isNotEmpty() }

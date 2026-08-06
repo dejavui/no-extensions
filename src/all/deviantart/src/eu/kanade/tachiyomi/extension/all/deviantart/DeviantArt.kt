@@ -15,6 +15,7 @@ import keiyoushi.annotation.Source
 import keiyoushi.network.get
 import keiyoushi.source.KeiSource
 import keiyoushi.utils.getPreferencesLazy
+import keiyoushi.utils.tryParseZonedDateTime
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import okhttp3.HttpUrl
@@ -23,8 +24,6 @@ import okhttp3.Response
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.parser.Parser
-import java.time.DateTimeException
-import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -154,7 +153,7 @@ abstract class DeviantArt :
         SChapter.create().apply {
             setUrlWithoutDomain(it.selectFirst("link")!!.text())
             name = it.selectFirst("title")!!.text()
-            date_upload = it.selectFirst("pubDate")?.text()?.let(dateFormat::tryParse) ?: 0L
+            date_upload = it.selectFirst("pubDate")?.text()?.let(dateFormat::tryParseZonedDateTime) ?: 0L
             scanlator = it.selectFirst("media|credit")?.text()
         }
     }
@@ -230,10 +229,4 @@ abstract class DeviantArt :
         private val GALLERY_QUERY_REGEX = Regex("""gallery:([\w-]+)(?:/(\d+))?""")
         private val IMAGE_ORIGINAL_URL_REGEX = Regex("""/v1(/.*)?(?=\?)""")
     }
-}
-
-private fun DateTimeFormatter.tryParse(date: String): Long = try {
-    ZonedDateTime.parse(date, this).toInstant().toEpochMilli()
-} catch (_: DateTimeException) {
-    0L
 }

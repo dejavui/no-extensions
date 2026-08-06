@@ -3,9 +3,9 @@ package eu.kanade.tachiyomi.extension.vi.mimi
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
+import keiyoushi.utils.tryParseDateTime
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -87,22 +87,12 @@ class ChapterDto(
         url = "$mangaId/$id"
         name = title?.takeIf { it.isNotBlank() } ?: "Chapter $order"
         chapter_number = order.toFloat()
-        date_upload = dateFormat.tryParse(createdAt)
+        date_upload = dateFormat.tryParseDateTime(createdAt, vnZone)
     }
 }
 
 private val dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")
 private val vnZone = ZoneId.of("Asia/Ho_Chi_Minh")
-
-private fun DateTimeFormatter.tryParse(date: String?): Long {
-    if (date.isNullOrBlank()) return 0L
-    return runCatching {
-        LocalDateTime.parse(date, this)
-            .atZone(vnZone)
-            .toInstant()
-            .toEpochMilli()
-    }.getOrDefault(0L)
-}
 
 @Serializable
 class PageDto(

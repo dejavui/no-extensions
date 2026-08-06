@@ -13,6 +13,7 @@ import keiyoushi.network.get
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
 import keiyoushi.utils.parseAs
+import keiyoushi.utils.tryParseDateTime
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -21,7 +22,6 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.nodes.Document
-import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -34,13 +34,7 @@ abstract class ZetTruyen : KeiSource() {
     }
 
     private val apiDateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss", Locale.ROOT)
-
-    private fun DateTimeFormatter.tryParse(date: String?): Long = runCatching {
-        LocalDateTime.parse(date, this)
-            .atZone(ZoneId.of("Asia/Ho_Chi_Minh"))
-            .toInstant()
-            .toEpochMilli()
-    }.getOrDefault(0L)
+    private val dateZone = ZoneId.of("Asia/Ho_Chi_Minh")
 
     // ============================== Popular ===============================
 
@@ -195,7 +189,7 @@ abstract class ZetTruyen : KeiSource() {
             url = "/truyen-tranh/$slug/$chapterSlug"
             name = chapter.chapterName
             date_upload = chapter.updatedAt?.substringBefore(".")
-                ?.let { apiDateFormat.tryParse(it) }
+                ?.let { apiDateFormat.tryParseDateTime(it, dateZone) }
                 ?: 0L
         }
     }

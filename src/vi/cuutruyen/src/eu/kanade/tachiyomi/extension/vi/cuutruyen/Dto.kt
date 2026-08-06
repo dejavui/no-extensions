@@ -3,17 +3,13 @@ package eu.kanade.tachiyomi.extension.vi.cuutruyen
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
-import keiyoushi.utils.tryParse
+import keiyoushi.utils.tryParseZonedDateTime
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import okhttp3.HttpUrl.Companion.toHttpUrl
-import java.text.SimpleDateFormat
-import java.util.Locale
-import java.util.TimeZone
+import java.time.format.DateTimeFormatter
 
-private val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS", Locale.US).apply {
-    timeZone = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
-}
+private val dateFormat = DateTimeFormatter.ISO_OFFSET_DATE_TIME
 
 @Serializable
 class ResponseDto<T>(
@@ -113,7 +109,7 @@ class ChapterDto(
                 append(this@ChapterDto.name)
             }
         }
-        date_upload = dateFormat.tryParse(createdAt)
+        date_upload = dateFormat.tryParseZonedDateTime(createdAt)
         chapter_number = number.toFloatOrNull() ?: -1f
     }
 }

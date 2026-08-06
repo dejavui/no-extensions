@@ -14,6 +14,7 @@ import keiyoushi.network.get
 import keiyoushi.source.KeiSource
 import keiyoushi.utils.jsonInstance
 import keiyoushi.utils.parseAs
+import keiyoushi.utils.tryParseDateTime
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -32,7 +33,6 @@ import okhttp3.internal.http2.StreamResetException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.security.MessageDigest
-import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.LinkedList
@@ -150,7 +150,7 @@ abstract class Hitomi : KeiSource() {
                     name = "Chapter"
                     url = gallery.galleryurl
                     scanlator = gallery.type
-                    date_upload = dateFormat.tryParse(gallery.date.substringBeforeLast("-"))
+                    date_upload = dateFormat.tryParseDateTime(gallery.date.substringBeforeLast("-"), ZoneOffset.UTC)
                 },
             ),
         )
@@ -643,12 +643,6 @@ abstract class Hitomi : KeiSource() {
         update_strategy = UpdateStrategy.ONLY_FETCH_ONCE
         initialized = true
     }
-
-    // helpers
-
-    private fun DateTimeFormatter.tryParse(date: String?): Long = runCatching {
-        LocalDateTime.parse(date, this).toInstant(ZoneOffset.UTC).toEpochMilli()
-    }.getOrDefault(0L)
 
     private inline fun <reified T> Response.parseScriptAs(): T = parseAs<T> { it.substringAfter("var galleryinfo = ") }
 
