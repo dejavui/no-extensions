@@ -72,7 +72,7 @@ abstract class ViTruyen : KeiSource() {
             }
         }.build()
 
-        client.get(url, headers).use { response ->
+        client.get(url).use { response ->
             return parseMangaPage(response)
         }
     }
