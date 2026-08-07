@@ -188,7 +188,7 @@ abstract class VinaHentai : KeiSource() {
         val manga = SManga.create().apply {
             setUrlWithoutDomain("/truyen-hentai/$slug/")
         }
-        return fetchMangaUpdate(manga, emptyList(), true, false).manga
+        return fetchMangaUpdate(manga, emptyList(), fetchDetails = true, fetchChapters = false).manga
     }
 
     override suspend fun fetchMangaUpdate(

@@ -77,7 +77,7 @@ abstract class Truyen18 : KeiSource() {
             setUrlWithoutDomain("/doc-truyen/$slug")
         }
 
-        return fetchMangaUpdate(manga, emptyList(), true, false).manga
+        return fetchMangaUpdate(manga, emptyList(), true, fetchChapters = false).manga
     }
 
     private fun parseMangaPage(response: Response): MangasPage {

@@ -17,6 +17,7 @@ import keiyoushi.utils.firstInstanceOrNull
 import keiyoushi.utils.parseAs
 import keiyoushi.utils.toJsonElement
 import keiyoushi.utils.toJsonRequestBody
+import keiyoushi.utils.tryParseDate
 import kotlinx.serialization.json.JsonElement
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -33,7 +34,6 @@ import org.jsoup.nodes.Element
 import java.io.ByteArrayInputStream
 import java.security.MessageDigest
 import java.security.SecureRandom
-import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Collections
@@ -154,7 +154,7 @@ abstract class MoeTruyen : KeiSource() {
 
         val slug = url.pathSegments.getOrNull(1) ?: return null
         val manga = SManga.create().apply { setUrlWithoutDomain("/manga/$slug") }
-        return fetchMangaUpdate(manga, emptyList(), true, false).manga
+        return fetchMangaUpdate(manga, emptyList(), fetchDetails = true, fetchChapters = false).manga
     }
 
     // ============================== Details ===============================
@@ -176,10 +176,10 @@ abstract class MoeTruyen : KeiSource() {
             .joinToString { it.text() }
             .ifEmpty { null }
         description = document.selectFirst("[data-description-content]")
-            ?.text()
+            ?.wholeText()?.trim()
             ?.ifEmpty { null }
             ?: document.selectFirst(".manga-description__text")
-                ?.text()
+                ?.wholeText()?.trim()
                 ?.ifEmpty { null }
         status = parseStatus(document.selectFirst(".manga-status-pill")?.text())
         thumbnail_url = document.selectFirst(".detail-cover img")?.absUrl("src")
@@ -191,7 +191,7 @@ abstract class MoeTruyen : KeiSource() {
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        val document = client.get("$baseUrl${manga.url}").asJsoup()
+        val document = client.get(getMangaUrl(manga)).asJsoup()
         return SMangaUpdate(
             manga = parseMangaDetails(document, manga),
             chapters = if (fetchChapters) fetchChapterList(document) else chapters,
@@ -251,7 +251,7 @@ abstract class MoeTruyen : KeiSource() {
                 ?.ifEmpty { null }
 
             date_upload = parseRelativeDate(relativeDate).takeIf { it != 0L }
-                ?: parseAbsoluteDate(absoluteDate)
+                ?: dateFormat.tryParseDate(absoluteDate, dateZone)
         }
     }
 
@@ -273,20 +273,10 @@ abstract class MoeTruyen : KeiSource() {
         return (Clock.System.now() - duration).toEpochMilliseconds()
     }
 
-    private fun parseAbsoluteDate(date: String?): Long {
-        if (date == null) return 0L
-        return runCatching {
-            LocalDate.parse(date, dateFormat)
-                .atStartOfDay(dateZone)
-                .toInstant()
-                .toEpochMilli()
-        }.getOrDefault(0L)
-    }
-
     // ============================== Pages =================================
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
-        val document = client.get("$baseUrl${chapter.url}").asJsoup()
+        val document = client.get(getChapterUrl(chapter)).asJsoup()
         val images = document.select("img.page-media")
             .filterNot { element ->
                 element.parents().any { parent -> parent.tagName().equals("noscript", ignoreCase = true) }
@@ -354,8 +344,8 @@ abstract class MoeTruyen : KeiSource() {
 
     private fun createPageAccessProof(accessUrl: String, pageIndexes: List<Int>, token: String): PageAccessProof {
         val version = "imgx-page-access-proof-v1"
-        val issuedAt = System.currentTimeMillis()
-        val nonce = randomHex(16)
+        val issuedAt = Clock.System.now().toEpochMilliseconds()
+        val nonce = randomHex()
         val accessPath = accessUrl.toHttpUrl().encodedPath
         val pageIndexPart = pageIndexes.joinToString(",")
         val proofInput = listOf(
@@ -381,8 +371,8 @@ abstract class MoeTruyen : KeiSource() {
         )
     }
 
-    private fun randomHex(size: Int): String {
-        val bytes = ByteArray(size)
+    private fun randomHex(): String {
+        val bytes = ByteArray(16)
         secureRandom.nextBytes(bytes)
         return bytes.joinToString("") { "%02x".format(it.toInt() and 0xFF) }
     }

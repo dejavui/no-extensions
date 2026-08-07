@@ -94,7 +94,7 @@ abstract class TruyenQQComVN : KeiSource() {
 
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
         if (url.host == baseUrl.toHttpUrl().host) {
-            client.get(url, headers).use { response ->
+            client.get(url).use { response ->
                 return parseMangaDetails(response.asJsoup())
             }
         }
@@ -109,7 +109,7 @@ abstract class TruyenQQComVN : KeiSource() {
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        client.get(getMangaUrl(manga), headers).use { response ->
+        client.get(getMangaUrl(manga)).use { response ->
             val document = response.asJsoup()
             return SMangaUpdate(parseMangaDetails(document), parseChapterList(document))
         }

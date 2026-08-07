@@ -117,7 +117,7 @@ object ImageDecryptor {
             val wrapped = base64UrlDecode(grant.wrappedDecodeKey)
             require(wrapped.size == 32) { "IMGX wrapped grant invalid" }
             val grantString = buildGrantString(grant, storageKey, grantSalt)
-            val unwrapKey = deriveKeyFromString(grantString, 32)
+            val unwrapKey = deriveKeyFromString(grantString)
             for (i in wrapped.indices) {
                 wrapped[i] = (wrapped[i].toInt() xor unwrapKey[i].toInt()).toByte()
             }
@@ -130,7 +130,7 @@ object ImageDecryptor {
         val wrapped = base64UrlDecode(grant.wrappedContentKey!!)
         require(wrapped.size == 32) { "IMGX wrapped content grant invalid" }
         val grantString = buildGrantString(grant, storageKey, grantSalt = null)
-        val unwrapKey = deriveKeyFromString(grantString, 32)
+        val unwrapKey = deriveKeyFromString(grantString)
         for (i in wrapped.indices) {
             wrapped[i] = (wrapped[i].toInt() xor unwrapKey[i].toInt()).toByte()
         }
@@ -171,10 +171,10 @@ object ImageDecryptor {
             .toByteArray(Charsets.UTF_8)
     }
 
-    private fun deriveKeyFromString(input: String, length: Int): ByteArray {
-        val key = ByteArray(length)
+    private fun deriveKeyFromString(input: String): ByteArray {
+        val key = ByteArray(32)
         var hash = fnv1a(input.toByteArray(Charsets.UTF_8))
-        for (i in 0 until length) {
+        for (i in 0 until 32) {
             if (i % 4 == 0) {
                 hash = xorshift32(hash + i.toUInt() + goldenRatio)
             }

@@ -12,29 +12,28 @@ import keiyoushi.annotation.Source
 import keiyoushi.network.get
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
+import keiyoushi.utils.firstInstanceOrNull
 import keiyoushi.utils.parseAs
-import keiyoushi.utils.tryParse
+import keiyoushi.utils.tryParseDate
 import kotlinx.serialization.json.JsonElement
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Response
 import org.jsoup.nodes.Document
-import java.text.SimpleDateFormat
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
-import java.util.TimeZone
 
 @Source
 abstract class ViTruyen : KeiSource() {
 
-    override val name: String = "ViTruyen"
-
     private val apiUrl: String
         get() = "https://api.${baseUrl.toHttpUrl().host}"
 
-    private val dateFormat = SimpleDateFormat("dd/MM/yy", Locale.ROOT).apply {
-        timeZone = TimeZone.getTimeZone("Asia/Ho_Chi_Minh")
-    }
+    private val dateFormat = DateTimeFormatter.ofPattern("dd/MM/yy", Locale.ROOT)
+
+    private val vietnamZone = ZoneId.of("Asia/Ho_Chi_Minh")
 
     override fun OkHttpClient.Builder.configureClient() = apply {
         rateLimit(3)
@@ -51,12 +50,12 @@ abstract class ViTruyen : KeiSource() {
     // =============================== Search ===============================
 
     override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
-        val genre = filters.filterIsInstance<GenresFilter>().firstOrNull()?.let {
+        val genre = filters.firstInstanceOrNull<GenresFilter>()?.let {
             it.values[it.state].slug
         } ?: "dang-hot"
 
-        val sort = filters.filterIsInstance<SortFilter>().firstOrNull()?.let { it.values[it.state].slug } ?: "latest"
-        val status = filters.filterIsInstance<StatusFilter>().firstOrNull()?.let { it.values[it.state].slug } ?: ""
+        val sort = filters.firstInstanceOrNull<SortFilter>()?.let { it.values[it.state].slug } ?: "latest"
+        val status = filters.firstInstanceOrNull<StatusFilter>()?.let { it.values[it.state].slug } ?: ""
 
         val url = apiUrl.toHttpUrl().newBuilder().apply {
             if (query.isNotBlank()) {
@@ -159,7 +158,7 @@ abstract class ViTruyen : KeiSource() {
                 name += " 🆓"
             }
 
-            date_upload = dateFormat.tryParse(element.select(".tabular-nums").text())
+            date_upload = dateFormat.tryParseDate(element.select(".tabular-nums").text(), vietnamZone)
         }
     }
 

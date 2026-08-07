@@ -69,7 +69,7 @@ abstract class TruyenGGVN : KeiSource() {
     override suspend fun getPopularManga(page: Int): MangasPage {
         val url = "$baseUrl/truyen-yeu-thich" + if (page > 1) "/trang-$page.html" else ""
 
-        return mangaFromElement(client.get(url, headers).asJsoup())
+        return mangaFromElement(client.get(url).asJsoup())
     }
 
     // =============================== Latest ===============================
@@ -77,7 +77,7 @@ abstract class TruyenGGVN : KeiSource() {
     override suspend fun getLatestUpdates(page: Int): MangasPage {
         val url = "$baseUrl/truyen-moi-cap-nhat" + if (page > 1) "/trang-$page.html" else ""
 
-        return mangaFromElement(client.get(url, headers).asJsoup())
+        return mangaFromElement(client.get(url).asJsoup())
     }
 
     // =============================== Search ===============================
@@ -119,7 +119,7 @@ abstract class TruyenGGVN : KeiSource() {
 
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
         if (url.host == baseUrl.toHttpUrl().host) {
-            client.get(url, headers).use { response ->
+            client.get(url).use { response ->
                 return parseMangaDetails(response.asJsoup())
             }
         }
@@ -134,7 +134,7 @@ abstract class TruyenGGVN : KeiSource() {
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        client.get(getMangaUrl(manga), headers).use { response ->
+        client.get(getMangaUrl(manga)).use { response ->
             val document = response.asJsoup()
             return SMangaUpdate(parseMangaDetails(document), parseChapterList(document))
         }
@@ -164,7 +164,7 @@ abstract class TruyenGGVN : KeiSource() {
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
         val cacheControl = CacheControl.FORCE_NETWORK
-        client.get(getChapterUrl(chapter), headers, cacheControl).use { response ->
+        client.get(getChapterUrl(chapter), cacheControl).use { response ->
             val document = response.asJsoup()
             return document.select(".page-chapter img").mapIndexed { index, element ->
                 Page(index, imageUrl = element.absUrl("src").ifEmpty { element.absUrl("data-original") })

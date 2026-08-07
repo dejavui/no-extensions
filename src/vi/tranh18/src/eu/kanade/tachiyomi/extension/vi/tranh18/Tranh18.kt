@@ -18,6 +18,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Response
 import org.jsoup.nodes.Document
+import kotlin.time.Clock
 
 @Source
 abstract class Tranh18 : KeiSource() {
@@ -149,6 +150,7 @@ abstract class Tranh18 : KeiSource() {
                 val a = element.selectFirst("a")!!
                 setUrlWithoutDomain(a.absUrl("href"))
                 name = a.text()
+                date_upload = Clock.System.now().toEpochMilliseconds()
                 chapter_number = CHAPTER_NUMBER_REGEX.find(name)?.value?.toFloatOrNull() ?: 0f
             }
         }

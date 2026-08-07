@@ -84,12 +84,12 @@ abstract class TruyenHentai18 : KeiSource() {
         if (url.host != baseUrl.toHttpUrl().host) return null
 
         val pathSegments = url.pathSegments
-        val mangaPath = when {
-            pathSegments.size == 1 && pathSegments[0].endsWith(".html") -> url.encodedPath
-            pathSegments.size == 2 &&
-                pathSegments[0].isNotEmpty() &&
+        val mangaPath = when (pathSegments.size) {
+            1 if pathSegments[0].endsWith(".html") -> url.encodedPath
+            2 if pathSegments[0].isNotEmpty() &&
                 pathSegments[1].startsWith("chapter-") &&
                 pathSegments[1].endsWith(".html") -> "/${pathSegments[0]}.html"
+
             else -> return null
         }
 

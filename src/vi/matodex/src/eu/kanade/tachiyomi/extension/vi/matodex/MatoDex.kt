@@ -28,9 +28,8 @@ abstract class MatoDex : KeiSource() {
     }
 
     override fun Headers.Builder.configureHeaders(): Headers.Builder = apply {
-        add("Referer", "$baseUrl/")
+        removeAll("Origin")
     }
-
     // ============================== Popular ===============================
 
     override suspend fun getPopularManga(page: Int): MangasPage {

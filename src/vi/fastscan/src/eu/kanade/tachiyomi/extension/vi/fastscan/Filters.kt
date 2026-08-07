@@ -13,12 +13,11 @@ fun getFilters(genres: List<GenreOption>? = null): FilterList {
     return FilterList(filters)
 }
 
-class GenreFilter(genres: List<GenreOption>) :
+class GenreFilter(private val genres: List<GenreOption>) :
     Filter.Select<String>(
         "Thể loại truyện",
         arrayOf("Tất cả") + genres.map { genre -> genre.name }.toTypedArray(),
     ) {
-    private val genres = genres
 
     val selected: String?
         get() = genres.getOrNull(state - 1)?.id

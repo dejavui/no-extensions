@@ -149,7 +149,7 @@ abstract class HentaiVNx : KeiSource() {
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        val document = client.get("$baseUrl${manga.url}").asJsoup()
+        val document = client.get(getMangaUrl(manga)).asJsoup()
         return SMangaUpdate(
             manga = mangaDetailsParse(document, manga),
             chapters = chapterListParse(document),
@@ -199,7 +199,7 @@ abstract class HentaiVNx : KeiSource() {
     // ============================== Pages ===============================
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
-        val document = client.get("$baseUrl${chapter.url}").asJsoup()
+        val document = client.get(getChapterUrl(chapter)).asJsoup()
         val images = document.select(".reading-detail img, .page-chapter img")
             .ifEmpty { document.select(".chapter-content img") }
 

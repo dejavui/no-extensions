@@ -11,7 +11,9 @@ keiyoushi {
     libVersion = "1.6"
 
     source {
-        baseUrl = "https://hentaivnreal.com"
+        baseUrl {
+            custom("https://hentaivnisreal.com")
+        }
         lang = "vi"
     }
 

@@ -76,7 +76,7 @@ abstract class TruyenHentaivn : KeiSource() {
         val manga = SManga.create().apply {
             setUrlWithoutDomain(detailUrl.toString())
         }
-        return fetchMangaUpdate(manga, emptyList(), true, false).manga
+        return fetchMangaUpdate(manga, emptyList(), fetchDetails = true, fetchChapters = false).manga
     }
 
     private fun listPageUrl(path: String, page: Int): HttpUrl = "$baseUrl$path".toHttpUrl().newBuilder()

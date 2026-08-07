@@ -82,7 +82,6 @@ abstract class SinhSieuSao : KeiSource() {
 
         tagsFilter?.let { filter ->
             val includedSlugs = filter.state
-                .filterIsInstance<TagTriStateFilter>()
                 .filter { it.state == Filter.TriState.STATE_INCLUDE }
                 .map { it.slug }
             for (slug in includedSlugs) {
@@ -90,7 +89,6 @@ abstract class SinhSieuSao : KeiSource() {
             }
 
             val excludedSlugs = filter.state
-                .filterIsInstance<TagTriStateFilter>()
                 .filter { it.state == Filter.TriState.STATE_EXCLUDE }
                 .map { it.slug }
             for (slug in excludedSlugs) {
