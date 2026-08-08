@@ -207,6 +207,6 @@ abstract class KhoManhwa : KeiSource() {
             }
         }
     }
-	private val chapterDateFormat  = DateTimeFormatter.ofPattern("MMM dd, uuuu", Locale.ENGLISH)
-	private val chapterDateZone = ZoneId.of("Asia/Ho_Chi_Minh")
+    private val chapterDateFormat = DateTimeFormatter.ofPattern("MMM dd, uuuu", Locale.ENGLISH)
+    private val chapterDateZone = ZoneId.of("Asia/Ho_Chi_Minh")
 }
