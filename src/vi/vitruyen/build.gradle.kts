@@ -16,4 +16,8 @@ keiyoushi {
             custom("https://vitruyen1.com")
         }
     }
+
+    deeplink {
+        path("/..*")
+    }
 }
