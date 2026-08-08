@@ -85,6 +85,10 @@ abstract class ZetTruyen : KeiSource() {
 
     // ============================== Filters ===============================
 
+    override fun getFilterList(data: JsonElement?) = getFilters()
+
+    // =========================== Manga Details ============================
+
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
         if (url.host != baseUrl.toHttpUrl().host || url.pathSegments.firstOrNull() != "truyen-tranh") return null
 
@@ -98,10 +102,6 @@ abstract class ZetTruyen : KeiSource() {
             setUrlWithoutDomain(mangaPath)
         }
     }
-    
-    override fun getFilterList(data: JsonElement?) = getFilters()
-
-    // =========================== Manga Details ============================
 
     override suspend fun fetchMangaUpdate(
         manga: SManga,
