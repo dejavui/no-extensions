@@ -56,7 +56,8 @@ abstract class ViTruyen : KeiSource() {
 
         val sort = filters.firstInstanceOrNull<SortFilter>()?.let { it.values[it.state].slug } ?: "latest"
         val status = filters.firstInstanceOrNull<StatusFilter>()?.let { it.values[it.state].slug } ?: ""
-
+        val schedule = filters.firstInstanceOrNull<SchedulesFilter>()?.let { it.values[it.state].slug } ?: ""
+        val translator = filters.firstInstanceOrNull<TranslatorsFilter>()?.let { it.values[it.state].slug } ?: ""
         val url = apiUrl.toHttpUrl().newBuilder().apply {
             if (query.isNotBlank()) {
                 addPathSegments("api/next/search-suggestions")
@@ -66,6 +67,8 @@ abstract class ViTruyen : KeiSource() {
                 addPathSegment(genre)
                 addQueryParameter("page", page.toString())
                 addQueryParameter("sort", sort)
+                if (schedule.isNotBlank()) addQueryParameter("schedule", schedule)
+                if (translator.isNotBlank()) addQueryParameter("translator", translator)
                 if (status.isNotBlank()) {
                     addQueryParameter("status", status)
                 }
@@ -200,6 +203,8 @@ abstract class ViTruyen : KeiSource() {
 
         filters.add(SortFilter())
         filters.add(StatusFilter())
+        filters.add(SchedulesFilter())
+        filters.add(TranslatorsFilter())
         return FilterList(filters)
     }
 }
