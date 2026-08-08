@@ -15,14 +15,15 @@ import keiyoushi.source.KeiSource
 import keiyoushi.utils.firstInstanceOrNull
 import keiyoushi.utils.parseAs
 import keiyoushi.utils.toJsonElement
-import keiyoushi.utils.tryParse
+import keiyoushi.utils.tryParseDate
 import kotlinx.serialization.json.JsonElement
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Response
 import org.jsoup.nodes.Document
-import java.text.SimpleDateFormat
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Source
@@ -92,7 +93,7 @@ abstract class KhoManhwa : KeiSource() {
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
         val slug = url.pathSegments.firstOrNull() ?: return null
         val manga = SManga.create().apply { this.url = "/$slug" }
-        return fetchMangaUpdate(manga, emptyList(), true, false).manga
+        return fetchMangaUpdate(manga, emptyList(), fetchDetails = true, fetchChapters = false).manga
     }
 
     override fun getMangaUrl(manga: SManga): String = baseUrl + manga.url
@@ -134,7 +135,7 @@ abstract class KhoManhwa : KeiSource() {
     private fun parseChapters(document: Document): List<SChapter> = document.select(".chapter-row").map { el ->
         SChapter.create().apply {
             name = el.selectFirst(".chapter-name strong")!!.text()
-            date_upload = dateFormat.tryParse(el.selectFirst(".chapter-age")?.text())
+            date_upload = chapterDateFormat.tryParseDate(el.selectFirst(".chapter-age")?.text(), chapterDateZone)
             chapter_number = el.attr("data-number").toFloatOrNull() ?: 0f
             setUrlWithoutDomain(el.selectFirst("a.chapter-main")!!.absUrl("href"))
         }
@@ -182,7 +183,7 @@ abstract class KhoManhwa : KeiSource() {
     }
 
     override fun getFilterList(data: JsonElement?): FilterList {
-        val filterData = data?.let { it.parseAs<FilterData>() } ?: return FilterList()
+        val filterData = data?.parseAs<FilterData>() ?: return FilterList()
         return FilterList(
             CategoryFilter(),
             Filter.Header("Genre, Status and Sort are ignored when Category is not 'All'"),
@@ -206,6 +207,6 @@ abstract class KhoManhwa : KeiSource() {
             }
         }
     }
+	private val chapterDateFormat  = DateTimeFormatter.ofPattern("MMM dd, uuuu", Locale.ENGLISH)
+	private val chapterDateZone = ZoneId.of("Asia/Ho_Chi_Minh")
 }
-
-private val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.ROOT)
