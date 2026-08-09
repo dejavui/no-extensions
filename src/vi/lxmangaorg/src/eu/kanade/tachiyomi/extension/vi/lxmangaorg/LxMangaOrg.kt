@@ -70,16 +70,16 @@ abstract class LxMangaOrg : KeiSource() {
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
         if (url.host != baseUrl.toHttpUrl().host) return null
 
-        val mangaPath = when {
-            url.pathSegments.size == 1 && url.pathSegments[0].endsWith(".html") -> url.encodedPath
-            url.pathSegments.size == 2 && url.pathSegments[1].endsWith(".html") -> "/${url.pathSegments[0]}.html"
+        val mangaPath = when (url.pathSegments.size) {
+            1 if url.pathSegments[0].endsWith(".html") -> url.encodedPath
+            2 if url.pathSegments[1].endsWith(".html") -> "/${url.pathSegments[0]}.html"
             else -> return null
         }
 
         val manga = SManga.create().apply {
             setUrlWithoutDomain(mangaPath)
         }
-        return fetchMangaUpdate(manga, emptyList(), true, false).manga
+        return fetchMangaUpdate(manga, emptyList(), true, fetchChapters = false).manga
     }
 
     private fun parseMangaPage(response: Response, page: Int): MangasPage {
