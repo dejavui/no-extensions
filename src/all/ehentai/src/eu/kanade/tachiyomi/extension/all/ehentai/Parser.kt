@@ -4,12 +4,11 @@ import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
 import eu.kanade.tachiyomi.util.asJsoup
+import keiyoushi.utils.tryParseDateTime
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Response
 import org.jsoup.nodes.Document
-import java.time.LocalDateTime
 import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
 
 object Parser {
     data class MangaListResult(val mangasPage: MangasPage, val lastMangaId: String)
@@ -67,11 +66,7 @@ object Parser {
                 if (left != null && right != null) {
                     ignore {
                         when (left) {
-                            "posted" -> datePosted = runCatching {
-                                LocalDateTime.parse(right, EX_DATE_FORMATTER)
-                                    .toInstant(ZoneOffset.UTC)
-                                    .toEpochMilli()
-                            }.getOrDefault(0L)
+                            "posted" -> datePosted = EX_DATE_FORMATTER.tryParseDateTime(right, ZoneOffset.UTC)
                             "visible" -> visible = right
                             "language" -> {
                                 language = right.removeSuffix(TR_SUFFIX).trim().nullIfBlank()
@@ -134,6 +129,5 @@ object Parser {
         return "$imgUrl#$bakUrl"
     }
 
-    private val EX_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
     private const val TR_SUFFIX = "TR"
 }

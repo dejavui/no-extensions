@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.extension.all.ehentai
 
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.ln
 import kotlin.math.pow
@@ -31,6 +32,8 @@ fun <T> ignore(expr: () -> T): T? = try {
 operator fun StringBuilder.plusAssign(other: String) {
     append(other)
 }
+
+val EX_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.US)
 
 /**
  * Converts bytes into a human-readable String

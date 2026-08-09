@@ -4,8 +4,6 @@ import eu.kanade.tachiyomi.source.model.SManga
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 private const val EH_ARTIST_NAMESPACE = "artist"
 private const val EH_AUTHOR_NAMESPACE = "author"
@@ -15,8 +13,6 @@ private val ONGOING_SUFFIX = arrayOf(
     "(ongoing)",
     "{ongoing}",
 )
-
-val EX_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.US)
 
 fun ExGalleryMetadata.copyTo(manga: SManga) {
     url?.let { manga.url = it }
