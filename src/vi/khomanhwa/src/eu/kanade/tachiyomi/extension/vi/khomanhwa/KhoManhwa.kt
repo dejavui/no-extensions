@@ -135,7 +135,10 @@ abstract class KhoManhwa : KeiSource() {
     private fun parseChapters(document: Document): List<SChapter> = document.select(".chapter-row").map { el ->
         SChapter.create().apply {
             name = el.selectFirst(".chapter-name strong")!!.text()
-            date_upload = chapterDateFormat.tryParseDate(el.selectFirst(".chapter-age")?.text(), chapterDateZone)
+            date_upload = chapterDateFormat.tryParseDate(
+                el.selectFirst(".chapter-age")?.text(),
+                chapterDateZone,
+            )
             chapter_number = el.attr("data-number").toFloatOrNull() ?: 0f
             setUrlWithoutDomain(el.selectFirst("a.chapter-main")!!.absUrl("href"))
         }
@@ -144,29 +147,21 @@ abstract class KhoManhwa : KeiSource() {
     // ============================== Pages ===============================
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
-        val response = client.get("$baseUrl${chapter.url}", ensureSuccess = false)
-        if (response.code == 403) {
+        val response = client.get(getChapterUrl(chapter), ensureSuccess = false)
+        if (!response.isSuccessful) {
+            val code = response.code
             response.close()
-            throw Exception("Đăng nhập Webview bằng tài khoản phù hợp để xem chương này")
+            if (code == 403) {
+                throw Exception("Đăng nhập Webview bằng tài khoản phù hợp để xem chương này")
+            }
+            throw Exception("HTTP error $code")
         }
         val document = response.asJsoup()
-        val boxImages = document.selectFirst("#chapter_boxImages") ?: return emptyList()
-        val manga = boxImages.attr("data-manga")
-        val chapterSlug = boxImages.attr("data-chapter")
-        val token = boxImages.attr("data-token")
-        val endpoint = boxImages.attr("data-endpoint").ifEmpty { "/reader_images.php" }
 
-        val apiUrl = "$baseUrl$endpoint".toHttpUrl().newBuilder().apply {
-            addQueryParameter("manga", manga)
-            addQueryParameter("chapter", chapterSlug)
-            addQueryParameter("token", token)
-        }.build()
-
-        val apiResponse = client.get(apiUrl)
-        val data = apiResponse.parseAs<ReaderImagesResponse>()
-        if (!data.ok) return emptyList()
-
-        return data.images.map { Page(it.page - 1, imageUrl = it.url) }
+        return document.select("#chapter_boxImages img.chapter-page")
+            .mapIndexed { index, element ->
+                Page(index, imageUrl = element.absUrl("src"))
+            }
     }
 
     // ============================== Filters ===============================
@@ -198,7 +193,7 @@ abstract class KhoManhwa : KeiSource() {
     override val supportsRelatedMangas: Boolean = true
 
     override suspend fun fetchRelatedMangaList(manga: SManga): List<SManga> {
-        val document = client.get("$baseUrl${manga.url}").asJsoup()
+        val document = client.get(getMangaUrl(manga)).asJsoup()
         return document.select(".similar-series a.series-card").map { el ->
             SManga.create().apply {
                 title = el.selectFirst("strong")!!.text()
@@ -207,6 +202,7 @@ abstract class KhoManhwa : KeiSource() {
             }
         }
     }
+
     private val chapterDateFormat = DateTimeFormatter.ofPattern("MMM dd, uuuu", Locale.ENGLISH)
     private val chapterDateZone = ZoneId.of("Asia/Ho_Chi_Minh")
 }
