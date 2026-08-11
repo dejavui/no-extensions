@@ -154,7 +154,7 @@ abstract class KhoManhwa : KeiSource() {
             if (code == 403) {
                 throw Exception("Đăng nhập Webview bằng tài khoản phù hợp để xem chương này")
             }
-            throw Exception("HTTP error $code")
+            throw HttpException(code)
         }
         val document = response.asJsoup()
 
