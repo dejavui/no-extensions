@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.extension.vi.khomanhwa
 
+import eu.kanade.tachiyomi.network.HttpException
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
