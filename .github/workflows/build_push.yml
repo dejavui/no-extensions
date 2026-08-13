@@ -153,11 +153,8 @@ jobs:
             git add .
             git commit -m "Update extensions repo"
             git push
-            curl https://purge.jsdelivr.net/gh/dejavui/not-extensions@repo/index.min.json
             curl https://purge.jsdelivr.net/gh/dejavui/not-extensions@repo/index.json
             curl https://purge.jsdelivr.net/gh/dejavui/not-extensions@repo/index.pb
-            curl https://purge.jsdelivr.net/gh/dejavui/not-extensions@repo/index.beta.json
-            curl https://purge.jsdelivr.net/gh/dejavui/not-extensions@repo/index.beta.pb
           else
             echo "No changes to commit"
           fi
