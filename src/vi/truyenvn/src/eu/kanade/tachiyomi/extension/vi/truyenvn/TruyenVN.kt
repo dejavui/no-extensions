@@ -48,7 +48,7 @@ abstract class TruyenVN : Madara() {
     override fun popularMangaRequest(page: Int): Request {
         val url = "$baseUrl/$mangaSubString".toHttpUrl().newBuilder().apply {
             if (page > 1) addQueryParameter("page", page.toString())
-            addQueryParameter("m_orderby", "latest")
+            addQueryParameter("m_orderby", "views")
         }.build()
         return GET(url, headers)
     }
@@ -87,21 +87,26 @@ abstract class TruyenVN : Madara() {
         var chapterElements = document.select(chapterListSelector())
 
         if (chapterElements.isEmpty()) {
-            val storyId = document.select("script")
-                .map { it.data() }
-                .firstNotNullOfOrNull { storyIdRegex.find(it)?.groupValues?.get(1) }
-                ?: return emptyList()
+            val scripts = document.select("script").map { it.data() }
+            val storyId = scripts.firstNotNullOfOrNull { storyIdRegex.find(it)?.groupValues?.get(1) }
+            val routeName = scripts.firstNotNullOfOrNull { routeNameRegex.find(it)?.groupValues?.get(1) }
+            val apiUrl = scripts.firstNotNullOfOrNull { urlListChapRegex.find(it)?.groupValues?.get(1) }
+                ?.replace("\\/", "/")
+                ?: "$baseUrl/webapi/stories/list-chapter"
+
+            if (storyId == null || routeName == null) return emptyList()
 
             val body = FormBody.Builder()
                 .add("story_id", storyId)
+                .add("routeName", routeName)
                 .add("_token", document.select("meta[name=csrf-token]").attr("content"))
-                .add("routeName", "story.detail")
                 .build()
 
-            val request = POST("$baseUrl/webapi/stories/list-chapter", xhrHeaders, body)
+            val request = POST(apiUrl, xhrHeaders, body)
             chapterElements = client.newCall(request).execute().use { xhrResponse ->
                 val jsonResponse = xhrResponse.parseAs<TruyenVNResponseDto>()
-                Jsoup.parseBodyFragment(jsonResponse.data.html, baseUrl).select(chapterListSelector())
+                val html = jsonResponse.data?.html ?: return emptyList()
+                Jsoup.parseBodyFragment(html, baseUrl).select(chapterListSelector())
             }
         }
 
@@ -113,11 +118,13 @@ abstract class TruyenVN : Madara() {
     }
 
     private val storyIdRegex = """let dataStory = \{"story_id":(\d+)\}""".toRegex()
+    private val routeNameRegex = """let dataView = \{.*"routeName":"([^"]+)"""".toRegex()
+    private val urlListChapRegex = """"urlListChap":"([^"]+)"""".toRegex()
 }
 
 @Serializable
 class TruyenVNResponseDto(
-    val data: TruyenVNDataDto,
+    val data: TruyenVNDataDto? = null,
 )
 
 @Serializable
