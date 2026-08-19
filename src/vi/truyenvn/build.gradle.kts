@@ -6,7 +6,7 @@ plugins {
 
 keiyoushi {
     name = "TruyenVN"
-    versionCode = 17
+    versionCode = 18
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"
     theme = "madara"
@@ -14,7 +14,7 @@ keiyoushi {
     source {
         lang = "vi"
         baseUrl {
-            custom("https://truyenvn.sbs")
+            custom("https://truyenvn.onl")
         }
     }
 }
