@@ -1,69 +1,72 @@
 package eu.kanade.tachiyomi.extension.vi.nettruyen0209
 
 import eu.kanade.tachiyomi.multisrc.wpcomics.WPComics
-import eu.kanade.tachiyomi.network.GET
-import eu.kanade.tachiyomi.network.POST
-import eu.kanade.tachiyomi.network.asObservableSuccess
 import eu.kanade.tachiyomi.source.model.FilterList
+import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.util.asJsoup
 import keiyoushi.annotation.Source
+import keiyoushi.network.get
+import keiyoushi.network.post
 import keiyoushi.network.rateLimit
 import keiyoushi.utils.parseAs
 import kotlinx.serialization.Serializable
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
-import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import org.jsoup.Jsoup
-import org.jsoup.nodes.Document
-import rx.Observable
-import java.text.SimpleDateFormat
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Source
 abstract class NetTruyen0209 : WPComics() {
-    override val dateFormat = SimpleDateFormat("HH:mm dd-MM-yyyy", Locale.ROOT)
+    override val dateFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm dd-MM-yyyy", Locale.ROOT)
 
-    override val client: OkHttpClient = network.client.newBuilder()
-        .rateLimit(3)
-        .build()
+    override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = apply {
+        rateLimit(3)
+    }
 
     override val searchPath = "search"
 
     override val popularPath = "danh-sach-truyen"
 
-    override fun popularMangaRequest(page: Int): Request = GET("$baseUrl/$popularPath/$page/?sort=views&status=0", headers)
+    override suspend fun getPopularManga(page: Int): MangasPage {
+        val url = "$baseUrl/$popularPath/$page/?sort=views&status=0"
+        return parseMangaPage(client.get(url), popularMangaSelector(), ::popularMangaFromElement)
+    }
 
-    override fun latestUpdatesRequest(page: Int): Request = GET("$baseUrl/$popularPath/$page/?sort=latest-updated&status=0", headers)
+    override suspend fun getLatestUpdates(page: Int): MangasPage {
+        val url = "$baseUrl/$popularPath/$page/?sort=latest-updated&status=0"
+        return parseMangaPage(client.get(url), latestUpdatesSelector(), ::latestUpdatesFromElement)
+    }
 
     override fun popularMangaNextPageSelector(): String = "a[title=Last Page]"
 
     // ============================== Pages =================================
 
-    override fun fetchPageList(chapter: SChapter): Observable<List<Page>> {
-        return client.newCall(pageListRequest(chapter))
-            .asObservableSuccess()
-            .flatMap { response ->
-                val document = response.asJsoup()
-                val pages = pageListParse(document)
-                if (pages.isNotEmpty()) {
-                    Observable.just(pages)
-                } else {
-                    val chapterId = CHAPTER_ID_REGEX.find(document.html())?.groupValues?.get(1)
-                        ?: return@flatMap Observable.just(emptyList<Page>())
+    override suspend fun getPageList(chapter: SChapter): List<Page> {
+        val response = client.get(getChapterUrl(chapter))
+        val pages = parsePageList(response)
+        if (pages.isNotEmpty()) {
+            return pages
+        }
 
-                    val ajaxRequest = POST(
-                        "$baseUrl/ajax/image/list/chap/$chapterId?cache=0",
-                        ajaxHeaders(response.request.url.toString()),
-                    )
-                    client.newCall(ajaxRequest).asObservableSuccess().map(::pageListParse)
-                }
-            }
+        val document = response.asJsoup()
+        val chapterId = CHAPTER_ID_REGEX.find(document.html())?.groupValues?.get(1)
+            ?: return emptyList()
+
+        val ajaxHeaders = headersBuilder()
+            .add("X-Requested-With", "XMLHttpRequest")
+            .add("Referer", response.request.url.toString())
+            .build()
+
+        val ajaxResponse = client.post("$baseUrl/ajax/image/list/chap/$chapterId?cache=0", ajaxHeaders, "".toRequestBody())
+        return parsePageList(ajaxResponse)
     }
 
-    override fun pageListParse(response: Response): List<Page> {
+    override suspend fun parsePageList(response: Response): List<Page> {
         val html = if (response.request.method == "POST") {
             response.parseAs<AjaxImageListDto>().html
         } else {
@@ -71,21 +74,14 @@ abstract class NetTruyen0209 : WPComics() {
         }
         val document = Jsoup.parseBodyFragment(html, baseUrl)
 
-        return pageListParse(document)
+        return document.select(pageListSelector).mapNotNull { imageOrNull(it) }
+            .filterNot { it.startsWith("data:") }
+            .distinct()
+            .mapIndexed { i, url -> Page(i, imageUrl = url) }
     }
 
-    private fun pageListParse(document: Document): List<Page> = document.select(pageListSelector).mapNotNull { imageOrNull(it) }
-        .filterNot { it.startsWith("data:") }
-        .distinct()
-        .mapIndexed { i, url -> Page(i, imageUrl = url) }
-    private fun ajaxHeaders(referer: String) = headersBuilder()
-        .add("X-Requested-With", "XMLHttpRequest")
-        .add("Referer", referer)
-        .build()
-
-    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
-        val url = baseUrl.toHttpUrl().newBuilder()
-        url.apply {
+    override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
+        val url = baseUrl.toHttpUrl().newBuilder().apply {
             if (query.isNotBlank()) {
                 addPathSegment(searchPath)
                 addQueryParameter(queryParam, query)
@@ -94,32 +90,28 @@ abstract class NetTruyen0209 : WPComics() {
                 (if (filters.isEmpty()) getFilterList() else filters).forEach { filter ->
                     when (filter) {
                         is GenreFilter -> filter.toUriPart()?.let {
-                            url.addPathSegment("the-loai")
-                            url.addPathSegment(it)
-                            url.addPathSegments("$page/")
-                            url.addQueryParameter("sort", "latest-updated")
-                            url.addQueryParameter("status", "0")
+                            addPathSegment("the-loai")
+                            addPathSegment(it)
+                            addPathSegments("$page/")
+                            addQueryParameter("sort", "latest-updated")
+                            addQueryParameter("status", "0")
                         }
                         is StatusFilter -> filter.toUriPart()?.let {
-                            val paths = when (it) {
-                                "2" -> {
-                                    url.addPathSegment("truyen-hoan-thanh")
-                                }
-                                else -> {
-                                    url.addPathSegment(popularPath)
-                                }
+                            when (it) {
+                                "2" -> addPathSegment("truyen-hoan-thanh")
+                                else -> addPathSegment(popularPath)
                             }
-                            url.addPathSegments("$page/")
-                            url.addQueryParameter("sort", "latest-updated")
-                            paths.addQueryParameter("status", it)
+                            addPathSegments("$page/")
+                            addQueryParameter("sort", "latest-updated")
+                            addQueryParameter("status", it)
                         }
                         else -> {}
                     }
                 }
             }
-        }
+        }.build()
 
-        return GET(url.toString(), headers)
+        return parseMangaPage(client.get(url), searchMangaSelector(), ::searchMangaFromElement)
     }
 
     companion object {
