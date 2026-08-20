@@ -15,7 +15,7 @@ from google.protobuf import json_format
 # emitted by each assembleRelease.
 ARTIFACTS_DIR = Path.home() / "apk-artifacts"
 
-# The checked-out `repo` branch we publish into (the working directory).
+# The checked-out `repo` branch we publish into (the working directory). current_sha is the commit hash of dejavui/no-extensions that we are publishing.
 REPO_DIR = Path.cwd()
 
 ICON_BASE_URL = "https://cdn.jsdelivr.net/gh/dejavui/no-extensions@main"
