@@ -1,0 +1,28 @@
+import io.github.keiyoushi.gradle.api.ContentWarning
+
+plugins {
+    alias(kei.plugins.extension)
+}
+
+keiyoushi {
+    name = "Cuu Truyen"
+    versionCode = 6
+    contentWarning = ContentWarning.MIXED
+    libVersion = "1.6"
+
+    source {
+        lang = "vi"
+        baseUrl {
+            mirrors(
+                "https://cuutruyen.net",
+                "https://hetcuutruyen.net",
+            )
+        }
+    }
+
+    deeplink {
+        host("cuutruyen.net")
+        host("hetcuutruyen.net")
+        path("/mangas/..*")
+    }
+}

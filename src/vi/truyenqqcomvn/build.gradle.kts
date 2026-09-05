@@ -1,0 +1,23 @@
+import io.github.keiyoushi.gradle.api.ContentWarning
+
+plugins {
+    alias(kei.plugins.extension)
+}
+
+keiyoushi {
+    name = "TruyenQQ.com.vn"
+    versionCode = 3
+    contentWarning = ContentWarning.SAFE
+    libVersion = "1.6"
+
+    source {
+        lang = "vi"
+        baseUrl {
+            custom("https://truyenqq.com.vn")
+        }
+    }
+
+    deeplink {
+        path("/..*")
+    }
+}

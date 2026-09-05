@@ -1,0 +1,279 @@
+package eu.kanade.tachiyomi.extension.vi.cuutruyen
+
+import android.content.SharedPreferences
+import androidx.preference.ListPreference
+import androidx.preference.PreferenceScreen
+import eu.kanade.tachiyomi.source.ConfigurableSource
+import eu.kanade.tachiyomi.source.model.FilterList
+import eu.kanade.tachiyomi.source.model.MangasPage
+import eu.kanade.tachiyomi.source.model.Page
+import eu.kanade.tachiyomi.source.model.SChapter
+import eu.kanade.tachiyomi.source.model.SManga
+import eu.kanade.tachiyomi.source.model.SMangaUpdate
+import keiyoushi.annotation.Source
+import keiyoushi.network.get
+import keiyoushi.network.rateLimit
+import keiyoushi.source.KeiSource
+import keiyoushi.utils.getPreferences
+import keiyoushi.utils.parseAs
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.serialization.json.JsonElement
+import okhttp3.CacheControl
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.Interceptor
+import okhttp3.OkHttpClient
+import okhttp3.Response
+import kotlin.time.Duration.Companion.seconds
+
+@Source
+abstract class CuuTruyen :
+    KeiSource(),
+    ConfigurableSource {
+
+    private val preferences: SharedPreferences = getPreferences()
+
+    private val apiUrl: String get() = "$baseUrl/api/v2"
+
+    override fun OkHttpClient.Builder.configureClient() = apply {
+        addInterceptor(ImageInterceptor())
+        addInterceptor(::thumbnailIntercept)
+        rateLimit(1, 2.seconds) { it.host == baseUrl.toHttpUrl().host }
+    }
+
+    private val titleCache = object : LinkedHashMap<Int, String?>(
+        (TITLE_CACHE_CAPACITY / TITLE_CACHE_LOAD_FACTOR).toInt(),
+        TITLE_CACHE_LOAD_FACTOR,
+        true,
+    ) {
+        override fun removeEldestEntry(
+            eldest: MutableMap.MutableEntry<Int, String?>?,
+        ): Boolean = size > TITLE_CACHE_CAPACITY
+    }
+
+    // ============================== Popular ===============================
+
+    override suspend fun getPopularManga(page: Int): MangasPage {
+        val url = apiUrl.toHttpUrl().newBuilder().apply {
+            addPathSegments("mangas/top")
+            addQueryParameter("duration", "all")
+            addQueryParameter("page", page.toString())
+            addQueryParameter("per_page", "24")
+        }.build()
+
+        client.get(url, CacheControl.FORCE_NETWORK).use { response ->
+            val responseDto = response.parseAs<ResponseDto<List<MangaDto>>>()
+            return parseMangaList(responseDto.data, responseDto.metadata)
+        }
+    }
+
+    // =============================== Latest ===============================
+
+    override suspend fun getLatestUpdates(page: Int): MangasPage {
+        val url = apiUrl.toHttpUrl().newBuilder().apply {
+            addPathSegments("mangas/recently_updated")
+            addQueryParameter("page", page.toString())
+            addQueryParameter("per_page", "30")
+        }.build()
+
+        client.get(url, CacheControl.FORCE_NETWORK).use { response ->
+            val responseDto = response.parseAs<ResponseDto<List<MangaDto>>>()
+            return parseMangaList(responseDto.data, responseDto.metadata)
+        }
+    }
+
+    // =============================== Search ===============================
+
+    override suspend fun getSearchMangaList(
+        page: Int,
+        query: String,
+        filters: FilterList,
+    ): MangasPage {
+        if (query.startsWith(PREFIX_ID_SEARCH)) {
+            val id = query.removePrefix(PREFIX_ID_SEARCH).trim()
+            if (id.toIntOrNull() == null) {
+                throw Exception("ID tìm kiếm không hợp lệ (phải là một số).")
+            }
+            val manga = SManga.create().apply { this.url = id }
+            val details = fetchMangaUpdate(
+                manga,
+                emptyList(),
+                fetchDetails = true,
+                fetchChapters = false,
+            ).manga
+            return MangasPage(listOf(details), false)
+        }
+
+        val url = apiUrl.toHttpUrl().newBuilder().apply {
+            addPathSegments("mangas/search")
+            if (query.isNotEmpty()) {
+                addQueryParameter("q", query)
+            }
+            (filters.ifEmpty { getFilterList() }).forEach { filter ->
+                when (filter) {
+                    is TagFilter -> {
+                        val tags = filter.state.filter { it.state }
+                            .joinToString(" AND ") { "\"${it.id}\"" }
+                        if (tags.isNotEmpty()) {
+                            addQueryParameter("tags", tags)
+                        }
+                    }
+                    else -> {}
+                }
+            }
+            addQueryParameter("page", page.toString())
+            addQueryParameter("per_page", "24")
+        }.build()
+
+        client.get(url, CacheControl.FORCE_NETWORK).use { response ->
+            val path = response.request.url.encodedPath
+            if (path.endsWith("mangas/search") || path.endsWith("mangas/top")) {
+                val responseDto = response.parseAs<ResponseDto<List<MangaDto>>>()
+                return parseMangaList(responseDto.data, responseDto.metadata)
+            }
+
+            val responseDto = response.parseAs<ResponseDto<SearchByTagDTO>>()
+            return parseMangaList(responseDto.data.mangas, responseDto.metadata)
+        }
+    }
+
+    private fun parseMangaList(
+        data: List<MangaDto>,
+        metadata: PaginationMetadataDto?,
+    ): MangasPage {
+        val useMobileCover = preferences.useMobileCover
+        val manga = data.map { it.toSManga(useMobileCover) }
+        val hasNextPage = metadata?.let { it.currentPage < it.totalPages } ?: false
+
+        data.forEach {
+            titleCache[it.id] = if (useMobileCover) it.coverMobileUrl else it.coverUrl
+        }
+
+        return MangasPage(manga, hasNextPage)
+    }
+
+    override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
+        if (url.host == baseUrl.toHttpUrl().host &&
+            url.pathSegments.size >= 2 &&
+            url.pathSegments[0] == "mangas"
+        ) {
+            val mangaId = url.pathSegments[1]
+            client.get("$apiUrl/mangas/$mangaId").use { response ->
+                return response.parseAs<ResponseDto<MangaDto>>()
+                    .data
+                    .toSManga(preferences.useMobileCover)
+            }
+        }
+        return null
+    }
+
+    override fun getMangaUrl(manga: SManga): String = "$baseUrl/mangas/${manga.url.substringAfterLast('/')}"
+
+    override fun getChapterUrl(chapter: SChapter): String = "$baseUrl/mangas/${chapter.memo["mangaId"]?.parseAs<String>()}/chapters/${chapter.url.substringAfterLast('/')}"
+
+    // =========================== Manga Details ============================
+
+    override suspend fun fetchMangaUpdate(
+        manga: SManga,
+        chapters: List<SChapter>,
+        fetchDetails: Boolean,
+        fetchChapters: Boolean,
+    ): SMangaUpdate = coroutineScope {
+        val mangaId = manga.url.substringAfterLast('/')
+        val useMobileCover = preferences.useMobileCover
+
+        val details = async {
+            if (fetchDetails) {
+                client.get("$apiUrl/mangas/$mangaId").use { response ->
+                    response.parseAs<ResponseDto<MangaDto>>()
+                        .data.toSManga(useMobileCover)
+                }
+            } else {
+                manga
+            }
+        }
+
+        val chaptersList = async {
+            if (fetchChapters) {
+                client.get("$apiUrl/mangas/$mangaId/chapters", CacheControl.FORCE_NETWORK).use { response ->
+                    response.parseAs<ResponseDto<List<ChapterDto>>>()
+                        .data.map { it.toSChapter(mangaId) }
+                }
+            } else {
+                chapters
+            }
+        }
+
+        SMangaUpdate(details.await(), chaptersList.await())
+    }
+
+    // =============================== Pages ================================
+
+    override suspend fun getPageList(chapter: SChapter): List<Page> {
+        val url = apiUrl.toHttpUrl().newBuilder().apply {
+            addPathSegment("chapters")
+            addPathSegment(chapter.url.substringAfterLast('/'))
+        }.build()
+
+        client.get(url, CacheControl.FORCE_NETWORK).use { response ->
+            return response.parseAs<ResponseDto<ChapterDto>>().data.pages!!
+                .map { it.toPage() }
+        }
+    }
+
+    // ============================== Filters ===============================
+
+    override fun getFilterList(data: JsonElement?): FilterList = FilterList(
+        TagFilter(tagList()),
+    )
+
+    private fun thumbnailIntercept(chain: Interceptor.Chain): Response {
+        val request = chain.request()
+        val response = chain.proceed(request)
+        val path = request.url.encodedPath
+        val isMangaCoverRequest = path
+            .contains("/manga/") && path.contains("/cover/")
+
+        if (response.isSuccessful || !isMangaCoverRequest) {
+            return response
+        }
+
+        val titleId = path.substringAfter("/manga/")
+            .substringBefore("/cover/")
+            .toIntOrNull() ?: return response
+        val newCover = titleCache[titleId] ?: return response
+
+        response.close()
+        return chain.proceed(request.newBuilder().url(newCover).build())
+    }
+
+    override fun setupPreferenceScreen(screen: PreferenceScreen) {
+        ListPreference(screen.context).apply {
+            key = "coverQuality"
+            title = "Chất lượng ảnh bìa"
+            entries = arrayOf("Chất lượng cao", "Di động")
+            entryValues = arrayOf("cover_url", "cover_mobile_url")
+            setDefaultValue("cover_url")
+
+            setOnPreferenceChangeListener { _, newValue ->
+                val selected = newValue as String
+                val index = findIndexOfValue(selected)
+                val entry = entryValues[index] as String
+
+                preferences.edit()
+                    .putString("coverQuality", entry)
+                    .commit()
+            }
+        }.let(screen::addPreference)
+    }
+
+    private val SharedPreferences.useMobileCover
+        get() = getString("coverQuality", "cover_url") == "cover_mobile_url"
+
+    companion object {
+        private const val PREFIX_ID_SEARCH = "id:"
+        private const val TITLE_CACHE_CAPACITY = 120
+        private const val TITLE_CACHE_LOAD_FACTOR = 0.7F
+    }
+}

@@ -1,0 +1,771 @@
+package eu.kanade.tachiyomi.extension.all.hitomi
+
+import android.util.Log
+import eu.kanade.tachiyomi.source.model.Filter
+import eu.kanade.tachiyomi.source.model.FilterList
+import eu.kanade.tachiyomi.source.model.MangasPage
+import eu.kanade.tachiyomi.source.model.Page
+import eu.kanade.tachiyomi.source.model.SChapter
+import eu.kanade.tachiyomi.source.model.SManga
+import eu.kanade.tachiyomi.source.model.SMangaUpdate
+import eu.kanade.tachiyomi.source.model.UpdateStrategy
+import keiyoushi.annotation.Source
+import keiyoushi.network.get
+import keiyoushi.source.KeiSource
+import keiyoushi.utils.jsonInstance
+import keiyoushi.utils.parseAs
+import keiyoushi.utils.tryParseDateTime
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.JsonElement
+import okhttp3.CacheControl
+import okhttp3.HttpUrl
+import okhttp3.Interceptor
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.internal.http2.ErrorCode
+import okhttp3.internal.http2.StreamResetException
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.security.MessageDigest
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import java.util.LinkedList
+import java.util.Locale
+import kotlin.math.min
+import kotlin.random.Random
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.seconds
+
+@Source
+@OptIn(ExperimentalUnsignedTypes::class)
+abstract class Hitomi : KeiSource() {
+
+    // properties
+
+    private val cdnDomain = "gold-usergeneratedcontent.net"
+
+    private val ltnUrl = "https://ltn.$cdnDomain"
+
+    private val nozomiLang by lazy {
+        when (lang) {
+            "all" -> "all"
+            "en" -> "english"
+            "id" -> "indonesian"
+            "jv" -> "javanese"
+            "ca" -> "catalan"
+            "ceb" -> "cebuano"
+            "cs" -> "czech"
+            "da" -> "danish"
+            "de" -> "german"
+            "et" -> "estonian"
+            "es" -> "spanish"
+            "eo" -> "esperanto"
+            "fr" -> "french"
+            "it" -> "italian"
+            "hi" -> "hindi"
+            "hu" -> "hungarian"
+            "pl" -> "polish"
+            "pt" -> "portuguese"
+            "vi" -> "vietnamese"
+            "tr" -> "turkish"
+            "ru" -> "russian"
+            "uk" -> "ukrainian"
+            "ar" -> "arabic"
+            "ko" -> "korean"
+            "zh" -> "chinese"
+            "ja" -> "japanese"
+            else -> lang
+        }
+    }
+
+    private val dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH)
+
+    private var galleriesIndexVersion: String? = null
+    private val versionMutex = Mutex()
+
+    private var scriptLastRetrieval: Long? = null
+    private val scriptMutex = Mutex()
+
+    @Volatile
+    private var scriptData: ScriptData? = null
+
+    // overrides
+
+    override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = apply {
+        addInterceptor(::imageUrlInterceptor)
+    }
+
+    override suspend fun getPopularManga(page: Int): MangasPage {
+        val entries = getGalleryIDsFromNozomi("popular", "year", nozomiLang, page.nextPageRange())
+            .toMangaList()
+
+        return MangasPage(entries, entries.size >= 24)
+    }
+
+    override suspend fun getLatestUpdates(page: Int): MangasPage {
+        val entries = getGalleryIDsFromNozomi(null, "index", nozomiLang, page.nextPageRange())
+            .toMangaList()
+
+        return MangasPage(entries, entries.size >= 24)
+    }
+
+    override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
+        val res = hitomiSearch(
+            query.trim(),
+            filters,
+            nozomiLang,
+        )
+
+        val startIndex = (page - 1) * 25
+        if (startIndex >= res.size) return MangasPage(emptyList(), false)
+
+        val end = min(page * 25, res.size)
+        val entries = res.subList(startIndex, end)
+            .toMangaList()
+        return MangasPage(entries, end < res.size)
+    }
+
+    override suspend fun fetchMangaUpdate(
+        manga: SManga,
+        chapters: List<SChapter>,
+        fetchDetails: Boolean,
+        fetchChapters: Boolean,
+    ): SMangaUpdate {
+        val id = manga.url
+            .substringAfterLast("-")
+            .substringBefore(".")
+
+        val gallery = client.get("$ltnUrl/galleries/$id.js").parseScriptAs<Gallery>()
+
+        return SMangaUpdate(
+            manga = gallery.toSManga(),
+            chapters = listOf(
+                SChapter.create().apply {
+                    name = "Chapter"
+                    url = gallery.galleryurl
+                    scanlator = gallery.type
+                    date_upload = dateFormat.tryParseDateTime(gallery.date.substringBeforeLast("-"), ZoneOffset.UTC)
+                },
+            ),
+        )
+    }
+
+    override suspend fun getPageList(chapter: SChapter): List<Page> {
+        refreshScript()
+
+        val id = chapter.url
+            .substringAfterLast("-")
+            .substringBefore(".")
+
+        val gallery = client.get("$ltnUrl/galleries/$id.js").parseScriptAs<Gallery>()
+
+        return gallery.files.mapIndexed { idx, img ->
+            // actual logic in imageUrlInterceptor
+            val imageUrl = HttpUrl.Builder().apply {
+                scheme("https")
+                host(IMAGE_LOOPBACK_HOST)
+                addQueryParameter(IMAGE_GIF, img.isGif.toString())
+                fragment(img.hash)
+            }.toString()
+
+            Page(
+                idx,
+                "$baseUrl/reader/$id.html",
+                imageUrl,
+            )
+        }
+    }
+
+    override fun imageRequest(page: Page): Request {
+        val imageHeaders = headersBuilder()
+            .set("Accept", "image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+            .set("Referer", page.url)
+            .build()
+
+        return Request.Builder()
+            .url(page.imageUrl!!)
+            .headers(imageHeaders)
+            .build()
+    }
+
+    override fun getFilterList(data: JsonElement?) = getFilters()
+
+    // core logic
+
+    private suspend fun getGalleriesIndexVersion(): String = versionMutex.withLock {
+        galleriesIndexVersion ?: client.get("$ltnUrl/galleriesindex/version?_=${Clock.System.now().toEpochMilliseconds()}").use { it.body.string() }
+            .also { galleriesIndexVersion = it }
+    }
+
+    private fun Int.nextPageRange(): LongRange {
+        val byteOffset = ((this - 1) * 25) * 4L
+        return byteOffset.until(byteOffset + 100)
+    }
+
+    private suspend fun getRangedResponse(url: String, range: LongRange?): ByteArray {
+        val headers = if (range == null) {
+            headers
+        } else {
+            headersBuilder()
+                .set("Range", "bytes=${range.first}-${range.last}")
+                .build()
+        }
+
+        val cacheControl = if (range != null) CacheControl.FORCE_NETWORK else CacheControl.Builder().build()
+
+        val tries = 5
+        repeat(tries) { attempt ->
+            try {
+                return client.get(url, headers, cacheControl).use { it.body.bytes() }
+            } catch (e: StreamResetException) {
+                if (e.errorCode == ErrorCode.INTERNAL_ERROR) {
+                    if (attempt == tries - 1) throw e // last attempt, rethrow
+                    Log.e(name, "Stream reset attempt ${attempt + 1}", e)
+                    delay((attempt + 1).seconds)
+                } else {
+                    throw e
+                }
+            }
+        }
+
+        throw Exception("Unreachable code")
+    }
+
+    private suspend fun hitomiSearch(
+        query: String,
+        filters: FilterList,
+        language: String = "all",
+    ): List<Int> = coroutineScope {
+        var sortBy: Pair<String?, String> = Pair(null, "index")
+        var random = false
+
+        val terms = query
+            .trim()
+            .lowercase()
+            .split(whitespaceRegex)
+            .toMutableList()
+
+        filters.forEach {
+            when (it) {
+                is SelectFilter -> {
+                    sortBy = Pair(it.getArea(), it.getValue())
+                    random = (it.vals[it.state].first == "Random")
+                }
+
+                is TypeFilter -> {
+                    val (activeFilter, inactiveFilters) = it.state.partition { stIt -> stIt.state }
+                    terms += when {
+                        inactiveFilters.size < 5 -> inactiveFilters.map { fil -> "-type:${fil.value}" }
+                        inactiveFilters.size == 5 -> listOf("type:${activeFilter[0].value}")
+                        else -> listOf("type: none")
+                    }
+                }
+
+                is TextFilter -> {
+                    if (it.state.isNotEmpty()) {
+                        terms += it.state.split(",").filter(String::isNotBlank).map { tag ->
+                            val trimmed = tag.trim()
+                            buildString {
+                                if (trimmed.startsWith('-')) {
+                                    append("-")
+                                }
+                                append(it.type)
+                                append(":")
+                                append(trimmed.lowercase().removePrefix("-"))
+                            }
+                        }
+                    }
+                }
+
+                else -> {}
+            }
+        }
+
+        if (language != "all" && sortBy == Pair(null, "index") && !terms.any { it.contains(":") }) {
+            terms += "language:$language"
+        }
+
+        val positiveTerms = LinkedList<String>()
+        val negativeTerms = LinkedList<String>()
+
+        for (term in terms) {
+            if (term.startsWith("-")) {
+                negativeTerms.push(term.removePrefix("-"))
+            } else if (term.isNotBlank()) {
+                positiveTerms.push(term)
+            }
+        }
+
+        val positiveResults = positiveTerms.map {
+            async {
+                try {
+                    getGalleryIDsForQuery(it, language)
+                } catch (e: IllegalArgumentException) {
+                    if (e.message?.equals("HTTP error 404") == true) {
+                        throw Exception("Unknown query: \"$it\"")
+                    } else {
+                        throw e
+                    }
+                }
+            }
+        }
+
+        val negativeResults = negativeTerms.map {
+            async {
+                try {
+                    getGalleryIDsForQuery(it, language)
+                } catch (e: IllegalArgumentException) {
+                    if (e.message?.equals("HTTP error 404") == true) {
+                        throw Exception("Unknown query: \"$it\"")
+                    } else {
+                        throw e
+                    }
+                }
+            }
+        }
+
+        val results = when {
+            positiveTerms.isEmpty() || sortBy != Pair(null, "index")
+            -> getGalleryIDsFromNozomi(sortBy.first, sortBy.second, language)
+
+            else -> emptySet()
+        }.toMutableSet()
+
+        fun filterPositive(newResults: Set<Int>) {
+            when {
+                results.isEmpty() -> results.addAll(newResults)
+                else -> results.retainAll(newResults)
+            }
+        }
+
+        fun filterNegative(newResults: Set<Int>) {
+            results.removeAll(newResults)
+        }
+
+        // positive results
+        positiveResults.forEach {
+            filterPositive(it.await())
+        }
+
+        // negative results
+        negativeResults.forEach {
+            filterNegative(it.await())
+        }
+
+        if (random) {
+            val filterKey = filters.joinToString {
+                when (it) {
+                    is Filter.Text -> it.state
+                    is Filter.Select<*> -> it.state.toString()
+                    else -> ""
+                }
+            }
+            val seed = (query + language + filterKey).hashCode().toLong()
+            results.toList().shuffled(Random(seed))
+        } else {
+            results.toList()
+        }
+    }
+
+    // search.js
+    private suspend fun getGalleryIDsForQuery(
+        query: String,
+        language: String = "all",
+    ): Set<Int> {
+        query.replace("_", " ").let {
+            if (it.indexOf(':') > -1) {
+                val sides = it.split(":")
+                val ns = sides[0]
+                var tag = sides[1]
+
+                var area: String? = ns
+                var lang = language
+                when (ns) {
+                    "female", "male" -> {
+                        area = "tag"
+                        tag = it
+                    }
+
+                    "language" -> {
+                        area = null
+                        lang = tag
+                        tag = "index"
+                    }
+                }
+
+                return getGalleryIDsFromNozomi(area, tag, lang)
+            }
+
+            val key = hashTerm(it)
+            val node = getGalleryNodeAtAddress(0)
+            val data = bSearch(key, node) ?: return emptySet()
+
+            return getGalleryIDsFromData(data)
+        }
+    }
+
+    private suspend fun getGalleryIDsFromData(data: Pair<Long, Int>): Set<Int> {
+        val version = getGalleriesIndexVersion()
+        val url = "$ltnUrl/galleriesindex/galleries.$version.data"
+        val (offset, length) = data
+        require(length in 1..100000000) {
+            "Length $length is too long"
+        }
+
+        val inbuf = getRangedResponse(url, offset.until(offset + length))
+
+        val buffer = ByteBuffer
+            .wrap(inbuf)
+            .order(ByteOrder.BIG_ENDIAN)
+
+        val numberOfGalleryIDs = buffer.int
+
+        val expectedLength = numberOfGalleryIDs * 4 + 4
+
+        require(numberOfGalleryIDs in 1..10000000) {
+            "number_of_galleryids $numberOfGalleryIDs is too long"
+        }
+        require(inbuf.size == expectedLength) {
+            "inbuf.byteLength ${inbuf.size} != expected_length $expectedLength"
+        }
+
+        // we know total number so avoid internal resize overhead
+        val galleryIDs = LinkedHashSet<Int>(numberOfGalleryIDs, 1.0f)
+
+        repeat(numberOfGalleryIDs) {
+            galleryIDs.add(buffer.int)
+        }
+
+        return galleryIDs
+    }
+
+    private tailrec suspend fun bSearch(
+        key: UByteArray,
+        node: Node,
+    ): Pair<Long, Int>? {
+        fun compareArrayBuffers(
+            dv1: UByteArray,
+            dv2: UByteArray,
+        ): Int {
+            val top = min(dv1.size, dv2.size)
+
+            for (i in 0.until(top)) {
+                if (dv1[i] < dv2[i]) {
+                    return -1
+                } else if (dv1[i] > dv2[i]) {
+                    return 1
+                }
+            }
+
+            return 0
+        }
+
+        fun locateKey(
+            key: UByteArray,
+            node: Node,
+        ): Pair<Boolean, Int> {
+            for (i in node.keys.indices) {
+                val cmpResult = compareArrayBuffers(key, node.keys[i])
+
+                if (cmpResult <= 0) {
+                    return Pair(cmpResult == 0, i)
+                }
+            }
+
+            return Pair(false, node.keys.size)
+        }
+
+        fun isLeaf(node: Node): Boolean {
+            for (subnode in node.subNodeAddresses) {
+                if (subnode != 0L) {
+                    return false
+                }
+            }
+
+            return true
+        }
+
+        if (node.keys.isEmpty()) {
+            return null
+        }
+
+        val (there, where) = locateKey(key, node)
+        if (there) {
+            return node.datas[where]
+        } else if (isLeaf(node)) {
+            return null
+        }
+
+        val nextNode = getGalleryNodeAtAddress(node.subNodeAddresses[where])
+        return bSearch(key, nextNode)
+    }
+
+    private suspend fun getGalleryIDsFromNozomi(
+        area: String?,
+        tag: String,
+        language: String,
+        range: LongRange? = null,
+    ): Set<Int> {
+        val nozomiAddress = when (area) {
+            null -> "$ltnUrl/$tag-$language.nozomi"
+            else -> "$ltnUrl/$area/$tag-$language.nozomi"
+        }
+
+        val bytes = getRangedResponse(nozomiAddress, range)
+
+        val arrayBuffer = ByteBuffer
+            .wrap(bytes)
+            .order(ByteOrder.BIG_ENDIAN)
+
+        val size = arrayBuffer.remaining() / Int.SIZE_BYTES
+
+        // we know total number so avoid internal resize overhead
+        val nozomi = LinkedHashSet<Int>(size, 1.0f)
+
+        while (arrayBuffer.hasRemaining()) {
+            nozomi.add(arrayBuffer.int)
+        }
+
+        return nozomi
+    }
+
+    private fun decodeNode(data: ByteArray): Node {
+        val buffer = ByteBuffer
+            .wrap(data)
+            .order(ByteOrder.BIG_ENDIAN)
+
+        val uData = data.toUByteArray()
+
+        val numberOfKeys = buffer.int
+        val keys = ArrayList<UByteArray>()
+
+        for (i in 0.until(numberOfKeys)) {
+            val keySize = buffer.int
+
+            if (keySize == 0 || keySize > 32) {
+                throw Exception("fatal: !keySize || keySize > 32")
+            }
+
+            keys.add(uData.sliceArray(buffer.position().until(buffer.position() + keySize)))
+            buffer.position(buffer.position() + keySize)
+        }
+
+        val numberOfDatas = buffer.int
+        val datas = ArrayList<Pair<Long, Int>>()
+
+        for (i in 0.until(numberOfDatas)) {
+            val offset = buffer.long
+            val length = buffer.int
+
+            datas.add(Pair(offset, length))
+        }
+
+        val numberOfSubNodeAddresses = 16 + 1
+        val subNodeAddresses = ArrayList<Long>()
+
+        for (i in 0.until(numberOfSubNodeAddresses)) {
+            val subNodeAddress = buffer.long
+            subNodeAddresses.add(subNodeAddress)
+        }
+
+        return Node(keys, datas, subNodeAddresses)
+    }
+
+    private suspend fun getGalleryNodeAtAddress(address: Long): Node {
+        val version = getGalleriesIndexVersion()
+        val url = "$ltnUrl/galleriesindex/galleries.$version.index"
+
+        val nodedata = getRangedResponse(url, address.until(address + 464))
+
+        return decodeNode(nodedata)
+    }
+
+    private fun hashTerm(term: String): UByteArray = sha256(term.toByteArray()).copyOfRange(0, 4).toUByteArray()
+
+    private fun sha256(data: ByteArray): ByteArray = MessageDigest.getInstance("SHA-256").digest(data)
+
+    // gallery & manga logic
+
+    private suspend fun Collection<Int>.toMangaList() = coroutineScope {
+        map { id ->
+            async {
+                try {
+                    client.get("$ltnUrl/galleries/$id.js")
+                        .parseScriptAs<Gallery>()
+                        .toSManga()
+                } catch (e: IllegalArgumentException) {
+                    if (e.message?.equals("HTTP error 404") == true) {
+                        return@async null
+                    } else {
+                        throw e
+                    }
+                }
+            }
+        }.awaitAll().filterNotNull()
+    }
+
+    private fun Gallery.toSManga(): SManga = SManga.create().apply {
+        title = this@toSManga.title
+        url = galleryurl
+        author = groups?.joinToString { it.formatted } ?: artists?.joinToString { it.formatted }
+        artist = artists?.joinToString { it.formatted }
+        genre = tags?.joinToString { it.formatted }
+        thumbnail_url = files.first().let {
+            HttpUrl.Builder().apply {
+                scheme("https")
+                host(IMAGE_LOOPBACK_HOST)
+                addQueryParameter(IMAGE_THUMBNAIL, "true")
+                addQueryParameter(IMAGE_GIF, it.isGif.toString())
+                fragment(it.hash)
+            }.toString()
+        }
+        description = buildString {
+            japaneseTitle?.let {
+                append("Japanese title: ", it, "\n")
+            }
+            parodys?.joinToString { it.formatted }?.let {
+                append("Series: ", it, "\n")
+            }
+            characters?.joinToString { it.formatted }?.let {
+                append("Characters: ", it, "\n")
+            }
+            append("Type: ", type, "\n")
+            append("Pages: ", files.size, "\n")
+            language?.let { append("Language: ", language) }
+        }
+        status = SManga.COMPLETED
+        update_strategy = UpdateStrategy.ONLY_FETCH_ONCE
+        initialized = true
+    }
+
+    private inline fun <reified T> Response.parseScriptAs(): T = parseAs<T> { it.substringAfter("var galleryinfo = ") }
+
+    private inline fun <reified T> Response.parseAs(transform: (String) -> String = { body -> body }): T {
+        val body = use { it.body.string() }
+        val transformed = transform(body)
+
+        return transformed.parseAs(jsonInstance)
+    }
+
+    // image & page logic
+
+    // ------------------ gg.js ------------------
+    private suspend fun refreshScript() = scriptMutex.withLock {
+        val now = Clock.System.now().toEpochMilliseconds()
+        if (scriptData != null && scriptLastRetrieval != null && (scriptLastRetrieval!! + 60000) >= now) {
+            return@withLock
+        }
+
+        val ggScript = client.get("$ltnUrl/gg.js?_=$now").use { it.body.string() }
+
+        val subdomainOffsetDefault = ggScriptOffsetRegex.find(ggScript)!!.groupValues[1].toInt()
+        val o = ggScriptBreakRegex.find(ggScript)!!.groupValues[1].toInt()
+
+        val subdomainOffsetMap = linkedMapOf<Int, Int>()
+        ggScriptCaseRegex.findAll(ggScript).forEach {
+            val case = it.groupValues[1].toInt()
+            subdomainOffsetMap[case] = o
+        }
+
+        val commonImageId = ggScriptCommonIdRegex.find(ggScript)!!.groupValues[1]
+
+        scriptData = ScriptData(
+            subdomainOffsetDefault = subdomainOffsetDefault,
+            subdomainOffsetMap = subdomainOffsetMap,
+            commonImageId = commonImageId,
+        )
+        scriptLastRetrieval = now
+    }
+
+    // m <-- gg.js
+    private fun cachedSubdomainOffset(imageId: Int): Int {
+        val data = scriptData ?: return 0
+        return data.subdomainOffsetMap[imageId] ?: data.subdomainOffsetDefault
+    }
+
+    // b <-- gg.js
+    private fun cachedCommonImageId(): String = scriptData?.commonImageId.orEmpty()
+
+    // s <-- gg.js
+    private fun imageIdFromHash(hash: String): Int {
+        val match = imageIdFromHashRegex.find(hash)
+        return match!!.groupValues.let { it[2] + it[1] }.toInt(16)
+    }
+
+    // real_full_path_from_hash <-- common.js
+    private fun thumbPathFromHash(hash: String): String = hash.replace(thumbPathRegex, "$2/$1")
+
+    private fun imageUrlInterceptor(chain: Interceptor.Chain): Response {
+        val request = chain.request()
+        if (request.url.host != IMAGE_LOOPBACK_HOST) {
+            return chain.proceed(request)
+        }
+
+        val hash = request.url.fragment!!
+        val isThumbnail = request.url.queryParameter(IMAGE_THUMBNAIL) == "true"
+        val isGif = request.url.queryParameter(IMAGE_GIF) == "true"
+
+        val type = if (isGif) {
+            "webp"
+        } else {
+            "avif"
+        }
+        val imageId = imageIdFromHash(hash)
+        val subDomainOffset = cachedSubdomainOffset(imageId)
+
+        val imageUrl = if (isThumbnail) {
+            val subDomain = "${'a' + subDomainOffset}tn"
+
+            "https://$subDomain.$cdnDomain/${type}bigtn/${thumbPathFromHash(hash)}/$hash.$type"
+        } else {
+            val commonId = cachedCommonImageId()
+            val subDomain = if (isGif) {
+                "w${subDomainOffset + 1}"
+            } else {
+                "a${subDomainOffset + 1}"
+            }
+
+            "https://$subDomain.$cdnDomain/$commonId$imageId/$hash.$type"
+        }
+
+        val newRequest = request.newBuilder()
+            .url(imageUrl)
+            .build()
+
+        return chain.proceed(newRequest)
+    }
+
+    // data structures
+
+    private class Node(
+        val keys: List<UByteArray>,
+        val datas: List<Pair<Long, Int>>,
+        val subNodeAddresses: List<Long>,
+    )
+
+    private class ScriptData(
+        val subdomainOffsetDefault: Int,
+        val subdomainOffsetMap: Map<Int, Int>,
+        val commonImageId: String,
+    )
+}
+
+// constants & regexes
+
+const val IMAGE_LOOPBACK_HOST = "127.0.0.1"
+const val IMAGE_THUMBNAIL = "is_thumbnail"
+const val IMAGE_GIF = "is_gif"
+
+private val whitespaceRegex = Regex("\\s+")
+private val ggScriptOffsetRegex = Regex("var o = (\\d)")
+private val ggScriptBreakRegex = Regex("o = (\\d); break;")
+private val ggScriptCaseRegex = Regex("case (\\d+):")
+private val ggScriptCommonIdRegex = Regex("b: '(.+)'")
+private val imageIdFromHashRegex = Regex("(..)(.)$")
+private val thumbPathRegex = Regex("""^.*(..)(.)$""")
