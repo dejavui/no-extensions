@@ -5,14 +5,14 @@ plugins {
 }
 
 keiyoushi {
-    name = "MangaKatana"
+    name = "Doujiva"
     versionCode = 1
-    contentWarning = ContentWarning.MIXED
+    contentWarning = ContentWarning.NSFW
     libVersion = "1.6"
 
     source {
-        lang = "en"
-        baseUrl = "https://mangakatana.com"
+        baseUrl = "https://doujiva.com"
+        lang = "all"
     }
 
     deeplink {

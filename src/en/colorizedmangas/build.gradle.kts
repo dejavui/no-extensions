@@ -5,17 +5,17 @@ plugins {
 }
 
 keiyoushi {
-    name = "MangaKatana"
+    name = "Colorized Mangas"
     versionCode = 1
-    contentWarning = ContentWarning.MIXED
+    contentWarning = ContentWarning.SAFE
     libVersion = "1.6"
 
     source {
+        baseUrl = "https://colorizedmangas.com"
         lang = "en"
-        baseUrl = "https://mangakatana.com"
     }
 
     deeplink {
-        path("/manga/..*")
+        path("/..*")
     }
 }
