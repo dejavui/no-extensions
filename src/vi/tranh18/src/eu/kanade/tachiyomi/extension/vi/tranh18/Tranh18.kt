@@ -166,7 +166,7 @@ abstract class Tranh18 : KeiSource() {
     override suspend fun getPageList(chapter: SChapter): List<Page> = client.get(getChapterUrl(chapter)).use { response ->
         val document = response.asJsoup()
         document.select(".comicpage img").mapIndexed { index, it ->
-            val url = it.absUrl("data-original")
+            val url = it.absUrl("data-original").ifEmpty { it.absUrl("src") }
             val finalUrl = if (url.startsWith("https://external-content.duckduckgo.com/iu/")) {
                 url.toHttpUrl().queryParameter("u")
             } else {
