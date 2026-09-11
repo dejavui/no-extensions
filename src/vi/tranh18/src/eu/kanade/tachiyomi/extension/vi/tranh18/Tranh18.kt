@@ -85,12 +85,14 @@ abstract class Tranh18 : KeiSource() {
                 setUrlWithoutDomain(a.absUrl("href"))
                 title = a.attr("title")
                 thumbnail_url = sel.selectFirst("p.mh-cover")?.attr("style")?.let { style ->
-                    if (style.contains("url(")) {
-                        baseUrl + style.substringAfter("url(").substringBefore(")")
-                    } else {
-                        null
+                    when {
+                        style.contains("url(https://") -> style.substringAfter("url(").substringBefore(")")
+                        style.contains("url(") -> baseUrl + style.substringAfter("url(").substringBefore(")")
+                        else -> null
                     }
-                } ?: (baseUrl + sel.selectFirst("img")?.attr("data-original"))
+                } ?: sel.selectFirst("img")?.run {
+                    absUrl("data-original").ifEmpty { absUrl("src") }
+                }
             }
         }
         val hasNextPage = document.selectFirst(".page-pagination li.active ~ li:not(.disabled) a") != null
