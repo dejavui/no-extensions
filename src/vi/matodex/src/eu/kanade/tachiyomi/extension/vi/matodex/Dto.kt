@@ -3,11 +3,11 @@ package eu.kanade.tachiyomi.extension.vi.matodex
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
-import keiyoushi.utils.tryParse
+import keiyoushi.utils.tryParseDateTime
 import kotlinx.serialization.Serializable
-import java.text.SimpleDateFormat
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
-import java.util.TimeZone
 
 private const val MANGA_URL = "/"
 private const val AUTHOR = "Takahiro, Takemura Youhei"
@@ -53,7 +53,7 @@ class MatoChapterDto(
         url = id
         name = title
         chapter_number = number.toFloat()
-        date_upload = dateFormat.tryParse(publishedAt)
+        date_upload = dateFormat.tryParseDateTime(publishedAt, vnZone)
     }
 }
 
@@ -66,6 +66,6 @@ class MatoChapterPayloadDto(
     }
 }
 
-private val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.ROOT).apply {
-    timeZone = TimeZone.getTimeZone("UTC")
-}
+private val dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.ROOT)
+
+private val vnZone = ZoneId.of("Asia/Ho_Chi_Minh")
