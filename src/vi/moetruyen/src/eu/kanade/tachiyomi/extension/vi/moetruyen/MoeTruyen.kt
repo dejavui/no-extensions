@@ -34,6 +34,7 @@ import okio.source
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.io.ByteArrayInputStream
+import java.net.URLDecoder
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.time.ZoneId
@@ -57,18 +58,12 @@ abstract class MoeTruyen : KeiSource() {
     // ============================== Popular ===============================
 
     override suspend fun getPopularManga(page: Int): MangasPage {
-        val mangas = client.get(baseUrl).asJsoup()
-            .select("ol.homepage-ranking-list[data-ranking-period=total] a.homepage-ranking-item__link")
-            .map(::popularMangaFromElement)
+        val url = "$baseUrl/manga".toHttpUrl().newBuilder()
+            .addQueryParameter("sort", "views_desc")
+            .addQueryParameter("page", page.toString())
+            .build()
 
-        return MangasPage(mangas, false)
-    }
-
-    private fun popularMangaFromElement(element: Element): SManga = SManga.create().apply {
-        setUrlWithoutDomain(element.absUrl("href"))
-        val titleElement = element.selectFirst(".homepage-ranking-item__title")!!
-        title = titleElement.attrOrNull("title") ?: titleElement.text()
-        thumbnail_url = element.selectFirst("img")?.absUrl("src")
+        return parseMangaList(client.get(url).asJsoup())
     }
 
     // ============================== Latest ================================
@@ -81,11 +76,11 @@ abstract class MoeTruyen : KeiSource() {
         return parseMangaList(client.get(url).asJsoup())
     }
 
-    private fun latestMangaFromElement(element: Element): SManga = SManga.create().apply {
+    private fun mangaFromElement(element: Element): SManga = SManga.create().apply {
         val linkElement = element.selectFirst("a[href^=/manga/]")!!
         setUrlWithoutDomain(linkElement.absUrl("href"))
         title = getFullListTitle(element)
-        thumbnail_url = element.selectFirst("img")?.absUrl("src")
+        thumbnail_url = element.selectFirst("img")?.imgAttr()
     }
 
     private fun getFullListTitle(element: Element): String {
@@ -109,7 +104,7 @@ abstract class MoeTruyen : KeiSource() {
 
     private fun parseMangaList(document: Document): MangasPage {
         val mangas = document.select("article.manga-card--list")
-            .map(::latestMangaFromElement)
+            .map(::mangaFromElement)
 
         val hasNextPage = document
             .selectFirst("nav[aria-label='Phân trang truyện'] a[aria-label='Trang sau']:not(.is-disabled)")
@@ -123,12 +118,14 @@ abstract class MoeTruyen : KeiSource() {
     // ============================== Search ================================
 
     override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
-        val status = filters.firstInstanceOrNull<StatusFilter>()?.toUriPart()
-        val includedGenres = filters.firstInstanceOrNull<GenreFilter>()
-            ?.state
-            ?.filter { it.state }
-            .orEmpty()
-        val hasFilter = status != null || includedGenres.isNotEmpty()
+        val status = filters.firstInstanceOrNull<StatusFilter>()?.toUriPart()?.ifEmpty { null }
+        val sort = filters.firstInstanceOrNull<SortFilter>()?.toUriPart()?.ifEmpty { null }
+        val genres = filters.firstInstanceOrNull<GenreFilter>()?.state.orEmpty()
+        val includedGenres = genres.filter { it.isIncluded() }
+        val excludedGenres = genres.filter { it.isExcluded() }
+
+        val hasFilter = status != null || (sort != null && sort != "updated_desc") ||
+            includedGenres.isNotEmpty() || excludedGenres.isNotEmpty()
 
         if (query.isBlank() && !hasFilter) {
             return getLatestUpdates(page)
@@ -142,7 +139,9 @@ abstract class MoeTruyen : KeiSource() {
                 }
 
                 status?.let { addQueryParameter("status", it) }
+                sort?.let { addQueryParameter("sort", it) }
                 includedGenres.forEach { addQueryParameter("include", it.id) }
+                excludedGenres.forEach { addQueryParameter("exclude", it.id) }
             }
             .build()
 
@@ -162,25 +161,28 @@ abstract class MoeTruyen : KeiSource() {
     private fun parseMangaDetails(document: Document, manga: SManga): SManga = SManga.create().apply {
         setUrlWithoutDomain(manga.url)
         title = document.selectFirst("h1.manga-detail-title")!!.text()
-        author = document.select("p.manga-detail-meta-line")
-            .firstOrNull { line ->
-                line.selectFirst(".manga-detail-meta-label")
-                    ?.text()
-                    ?.contains("Tác giả")
-                    ?: false
-            }
-            ?.select("a.inline-link")
+        author = document.selectFirst("p.manga-detail-meta-line:contains(Tác giả)")
+            ?.select("a")
             ?.joinToString { it.text() }
-            ?.ifEmpty { null }
+
         genre = document.select(".manga-detail-genre-chips a.chip")
             .joinToString { it.text() }
-            .ifEmpty { null }
-        description = document.selectFirst("[data-description-content]")
-            ?.wholeText()?.trim()
-            ?.ifEmpty { null }
-            ?: document.selectFirst(".manga-description__text")
+
+        description = buildString {
+            document.selectFirst("span:contains(Tên khác:) + span")?.textOrNull()?.let {
+                append("Tên khác: ", it, "\n\n")
+            }
+
+            document.selectFirst("[data-description-content]")
                 ?.wholeText()?.trim()
-                ?.ifEmpty { null }
+                ?.takeIf { it.isNotEmpty() }
+                ?.let(::append)
+                ?: document.selectFirst(".manga-description__text")
+                    ?.wholeText()?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let(::append)
+        }.trim()
+
         status = parseStatus(document.selectFirst(".manga-status-pill")?.textOrNull())
         thumbnail_url = document.selectFirst(".detail-cover img")?.absUrl("src")
     }
@@ -198,10 +200,11 @@ abstract class MoeTruyen : KeiSource() {
         )
     }
 
-    private fun parseStatus(status: String?): Int = when (status) {
-        "Còn tiếp" -> SManga.ONGOING
-        "Hoàn thành" -> SManga.COMPLETED
-        "Tạm dừng" -> SManga.ON_HIATUS
+    private fun parseStatus(status: String?): Int = when {
+        status == null -> SManga.UNKNOWN
+        status.contains("Còn tiếp", ignoreCase = true) -> SManga.ONGOING
+        status.contains("Hoàn thành", ignoreCase = true) -> SManga.COMPLETED
+        status.contains("Tạm dừng", ignoreCase = true) -> SManga.ON_HIATUS
         else -> SManga.UNKNOWN
     }
 
@@ -277,12 +280,14 @@ abstract class MoeTruyen : KeiSource() {
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
         val document = client.get(getChapterUrl(chapter)).asJsoup()
-        val images = document.select(".page-card .page-frame img")
-            .filterNot { element ->
-                element.parents().any { parent -> parent.tagName().equals("noscript", ignoreCase = true) } ||
-                    (element.attr("width") == "1200" && element.attr("height") == "626") ||
-                    (element.attr("data-imgx-width") == "1200" && element.attr("data-imgx-height") == "626")
-            }
+        val allImages = readerImages(document)
+
+        val bannerElement = allImages.firstOrNull { element ->
+            (element.attr("width") == "1200" && element.attr("height") == "626") ||
+                (element.attr("data-imgx-width") == "1200" && element.attr("data-imgx-height") == "626")
+        }
+        val bannerImgxIndex = bannerElement?.attr("data-imgx-page-index")?.toIntOrNull()
+        val images = allImages.filterNot { it == bannerElement }
         val readerPages = document.selectFirst("[data-reader-lazy-pages]")
 
         val accessUrl = images.firstOrNull()?.attr("data-imgx-access-url")?.ifBlank { null }
@@ -290,44 +295,68 @@ abstract class MoeTruyen : KeiSource() {
 
         if (accessUrl != null) {
             val fullAccessUrl = if (accessUrl.startsWith("http")) accessUrl else "$baseUrl$accessUrl"
-            val proofToken = readerPages
-                ?.attr("data-reader-imgx-proof-token")
-                ?.ifBlank { null }
 
-            val pageIndices = images.mapNotNull { it.attr("data-imgx-page-index").toIntOrNull() }
-            return fetchPagesWithGrants(fullAccessUrl, pageIndices, proofToken)
+            return fetchPagesWithGrants(fullAccessUrl, images, readerPages, bannerImgxIndex)
         }
 
         return images
-            .asSequence()
-            .map { element ->
-                element.absUrl("data-src").ifEmpty { element.absUrl("src") }
-            }
-            .filter { imageUrl ->
-                imageUrl.isNotBlank() && !imageUrl.startsWith("data:")
-            }
+            .map { it.imgAttr() }
+            .filter { it.isNotBlank() && !it.startsWith("data:") }
             .distinct()
-            .toList()
             .mapIndexed { index, imageUrl ->
                 Page(index, imageUrl = imageUrl)
             }
     }
 
+    private fun readerImages(document: Document): List<Element> = document.select(".page-card .page-frame img")
+        .filterNot { element ->
+            element.parents().any { parent -> parent.tagName().equals("noscript", ignoreCase = true) }
+        }
+
     private suspend fun fetchPagesWithGrants(
         accessUrl: String,
-        pageIndices: List<Int>,
-        proofToken: String?,
+        images: List<Element>,
+        readerPages: Element?,
+        bannerImgxIndex: Int?,
     ): List<Page> {
-        val pages = mutableListOf<Page>()
-        val lastIndex = pageIndices.lastOrNull() ?: return emptyList()
-        val indexMap = pageIndices.withIndex().associate { it.value to it.index }
-        val sortedIndices = pageIndices.sorted()
+        val initialEntries = readerPages?.attr("data-reader-imgx-initial-pages")
+            ?.ifBlank { null }
+            ?.let { json ->
+                runCatching {
+                    URLDecoder.decode(json, Charsets.UTF_8.name()).parseAs<List<PageAccessEntry>>()
+                }.getOrDefault(emptyList())
+            }
+            .orEmpty()
+            .filter { it.pageIndex != bannerImgxIndex && it.downloadUrl.isNotBlank() && it.grant != null }
+
+        initialEntries.forEach { entry ->
+            imgxGrants[entry.downloadUrl] = entry
+        }
+
+        val pageIndices = images.mapNotNull { it.attr("data-imgx-page-index").toIntOrNull() }
+            .filterNot { it == bannerImgxIndex }
+            .distinct()
+
+        val initialIndices = initialEntries.mapTo(mutableSetOf()) { it.pageIndex }
+        val pages = initialEntries.map { Page(it.pageIndex, imageUrl = it.downloadUrl) }.toMutableList()
+
+        val indicesToFetch = pageIndices.filterNot { it in initialIndices }
+        if (indicesToFetch.isEmpty()) {
+            return pages.sortedBy { it.index }
+                .mapIndexed { index, page -> Page(index, imageUrl = page.imageUrl) }
+        }
+
+        val proofToken = readerPages?.attr("data-reader-imgx-proof-token")?.ifBlank { null }
+        if (pageIndices.isEmpty()) {
+            return pages.sortedBy { it.index }
+                .mapIndexed { index, page -> Page(index, imageUrl = page.imageUrl) }
+        }
 
         val batchSize = 10
 
-        for (start in pageIndices.indices step batchSize) {
-            val end = minOf(start + batchSize, pageIndices.size)
-            val chunk = sortedIndices.subList(start, end)
+        for (start in indicesToFetch.indices step batchSize) {
+            val end = minOf(start + batchSize, indicesToFetch.size)
+            val chunk = indicesToFetch.subList(start, end)
             val proof = proofToken?.let { createPageAccessProof(accessUrl, chunk, it) }
             val body = PageAccessRequest(pageIndexes = chunk, pageAccessProof = proof).toJsonRequestBody()
             val accessHeaders = headers.newBuilder()
@@ -342,23 +371,16 @@ abstract class MoeTruyen : KeiSource() {
 
             val pageAccess = client.post(accessUrl, accessHeaders, body).parseAs<PageAccessResponse>()
 
-            var stop = false
             for (entry in pageAccess.pages) {
                 if (entry.downloadUrl.isNotBlank() && entry.grant != null) {
                     imgxGrants[entry.downloadUrl] = entry
-                    val clientPageIndex = indexMap[entry.pageIndex] ?: continue
-                    pages.add(Page(clientPageIndex, imageUrl = entry.downloadUrl))
-                }
-
-                if (entry.pageIndex == lastIndex) {
-                    stop = true
+                    pages.add(Page(entry.pageIndex, imageUrl = entry.downloadUrl))
                 }
             }
-
-            if (stop) break
         }
 
         return pages.sortedBy { it.index }
+            .mapIndexed { index, page -> Page(index, imageUrl = page.imageUrl) }
     }
 
     private fun createPageAccessProof(accessUrl: String, pageIndexes: List<Int>, token: String): PageAccessProof {
@@ -484,6 +506,8 @@ abstract class MoeTruyen : KeiSource() {
     private val dateZone = ZoneId.of("Asia/Ho_Chi_Minh")
     private val numberRegex = Regex("""\d+""")
     private val secureRandom = SecureRandom()
+
+    private fun Element.imgAttr(): String = absUrl("data-src").ifEmpty { absUrl("src") }
 
     private companion object {
         const val IMGX_GRANT_CACHE_SIZE = 500
