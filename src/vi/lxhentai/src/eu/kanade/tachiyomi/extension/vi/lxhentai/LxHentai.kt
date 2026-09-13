@@ -1,6 +1,5 @@
 package eu.kanade.tachiyomi.extension.vi.lxhentai
 
-import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -85,7 +84,7 @@ abstract class LxHentai : KeiSource() {
         val manga = SManga.create().apply {
             setUrlWithoutDomain("/truyen/$slug")
         }
-        return fetchMangaUpdate(manga, emptyList(), true, false).manga
+        return fetchMangaUpdate(manga, emptyList(), fetchDetails = true, fetchChapters = false).manga
     }
 
     private fun browseMangaUrl(page: Int, sortBy: String): HttpUrl = "$baseUrl/tim-kiem".toHttpUrl().newBuilder()
@@ -130,7 +129,7 @@ abstract class LxHentai : KeiSource() {
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        val document = client.get("$baseUrl${manga.url}").asJsoup()
+        val document = client.get(getMangaUrl(manga)).asJsoup()
         return SMangaUpdate(
             manga = parseMangaDetails(document, manga),
             chapters = parseChapterList(document),
@@ -205,7 +204,7 @@ abstract class LxHentai : KeiSource() {
     // ============================== Pages =================================
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
-        val chapterUrl = "$baseUrl${chapter.url}"
+        val chapterUrl = getChapterUrl(chapter)
 
         val fetchHookScript = javaClass.getResource("/assets/fetch_hook.js")?.readText()
             ?: throw IllegalStateException("fetch_hook.js not found in assets")
@@ -213,7 +212,7 @@ abstract class LxHentai : KeiSource() {
             ?: throw IllegalStateException("decode_urls.js not found in assets")
 
         val (token, imageUrls) = try {
-            runWebView<Pair<String, List<String>>>(timeout = 60.seconds) {
+            runWebView(timeout = 60.seconds) {
                 loadWithOverviewMode = true
                 useWideViewPort = true
                 userAgent = headers["User-Agent"]!!
@@ -224,10 +223,7 @@ abstract class LxHentai : KeiSource() {
 
                 poll(1.seconds) {
                     evaluateJs(decodeUrlsScript) { value ->
-                        val parsed = parseTokenResult(value.orEmpty())
-                        if (parsed == null) {
-                            return@evaluateJs
-                        }
+                        val parsed = parseTokenResult(value) ?: return@evaluateJs
                         resolve(parsed)
                     }
                 }
@@ -283,7 +279,7 @@ abstract class LxHentai : KeiSource() {
     override fun imageRequest(page: Page): Request {
         val (chapterUrl, actionToken) = decodePageMetadata(page.url)
         val imageUrl = page.imageUrl ?: throw Exception("Không tìm thấy URL ảnh")
-        return GET(imageUrl, imageHeaders(chapterUrl, actionToken))
+        return super.imageRequest(page).newBuilder().url(imageUrl).headers(imageHeaders(chapterUrl, actionToken)).get().build()
     }
 
     private fun imageHeaders(chapterUrl: String, actionToken: String) = super.headersBuilder()
