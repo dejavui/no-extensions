@@ -1,6 +1,5 @@
 package eu.kanade.tachiyomi.extension.vi.daomeoden
 
-import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -213,7 +212,7 @@ abstract class DaoMeoDen : KeiSource() {
         }
         val manga = SManga.create().apply { setUrlWithoutDomain(mangaPath) }
 
-        return fetchMangaUpdate(manga, emptyList(), true, false).manga.apply {
+        return fetchMangaUpdate(manga, emptyList(), fetchDetails = true, fetchChapters = false).manga.apply {
             initialized = true
         }
     }
@@ -304,7 +303,7 @@ abstract class DaoMeoDen : KeiSource() {
         val imageHeaders = headers.newBuilder()
             .set("Referer", page.url)
             .build()
-        return GET(page.imageUrl!!, imageHeaders)
+        return super.imageRequest(page).newBuilder().headers(imageHeaders).build()
     }
 
     // ============================== Filters ===============================

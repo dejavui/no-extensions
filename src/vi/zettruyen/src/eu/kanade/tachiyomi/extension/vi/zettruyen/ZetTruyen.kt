@@ -1,6 +1,5 @@
 package eu.kanade.tachiyomi.extension.vi.zettruyen
 
-import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -226,6 +225,6 @@ abstract class ZetTruyen : KeiSource() {
         val imageHeaders = headers.newBuilder()
             .set("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
             .build()
-        return GET(page.imageUrl!!, imageHeaders)
+        return super.imageRequest(page).newBuilder().headers(imageHeaders).build()
     }
 }
