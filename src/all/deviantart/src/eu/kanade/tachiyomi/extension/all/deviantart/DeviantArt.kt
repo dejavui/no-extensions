@@ -15,7 +15,7 @@ import keiyoushi.network.get
 import keiyoushi.source.KeiSource
 import keiyoushi.utils.asJsoup
 import keiyoushi.utils.getPreferencesLazy
-import keiyoushi.utils.tryParseZonedDateTime
+import keiyoushi.utils.tryParseDate
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import okhttp3.HttpUrl
@@ -38,7 +38,7 @@ abstract class DeviantArt :
     private val backendBaseUrl = "https://backend.deviantart.com"
     private fun backendBuilder() = backendBaseUrl.toHttpUrl().newBuilder()
 
-    private val dateFormat by lazy { DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.ENGLISH) }
+    private val dateFormat = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.ENGLISH)
 
     override suspend fun getPopularManga(page: Int): MangasPage = throw UnsupportedOperationException(SEARCH_FORMAT_MSG)
     override suspend fun getLatestUpdates(page: Int): MangasPage = throw UnsupportedOperationException(SEARCH_FORMAT_MSG)
@@ -153,7 +153,7 @@ abstract class DeviantArt :
         SChapter.create().apply {
             setUrlWithoutDomain(it.selectFirst("link")!!.text())
             name = it.selectFirst("title")!!.text()
-            date_upload = it.selectFirst("pubDate")?.text()?.let(dateFormat::tryParseZonedDateTime) ?: 0L
+            date_upload = dateFormat.tryParseDate(it.selectFirst("pubDate")?.text())
             scanlator = it.selectFirst("media|credit")?.text()
         }
     }
