@@ -6,7 +6,7 @@ plugins {
 
 keiyoushi {
     name = "TruyenGGVN"
-    versionCode = 1
+    versionCode = 2
     contentWarning = ContentWarning.SAFE
     libVersion = "1.6"
 
@@ -15,5 +15,9 @@ keiyoushi {
         baseUrl {
             custom("https://truyenggvn.com")
         }
+    }
+
+    deeplink {
+        path("/truyen-tranh/..*")
     }
 }

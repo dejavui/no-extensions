@@ -118,12 +118,18 @@ abstract class TruyenGGVN : KeiSource() {
     }
 
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
-        if (url.host == baseUrl.toHttpUrl().host) {
-            client.get(url).use { response ->
-                return parseMangaDetails(response.asJsoup())
-            }
+        if (url.host != baseUrl.toHttpUrl().host) return null
+
+        val segments = url.pathSegments.filter { it.isNotEmpty() }
+        if (segments.size != 2 || segments[0] != "truyen-tranh") return null
+
+        val mangaSlug = segments[1].substringBefore("-chap-")
+        val mangaPath = "/truyen-tranh/$mangaSlug"
+
+        val document = client.get("$baseUrl$mangaPath").asJsoup()
+        return parseMangaDetails(document).apply {
+            setUrlWithoutDomain(mangaPath)
         }
-        return null
     }
 
     // =============================== Details ==============================
@@ -156,7 +162,7 @@ abstract class TruyenGGVN : KeiSource() {
             val link = element.selectFirst("a")!!
             setUrlWithoutDomain(link.absUrl("href"))
             name = link.text()
-            date_upload = dateFormat.tryParseDate(element.select(".time-chap").text(), dateZone)
+            date_upload = dateFormat.tryParseDate(element.selectFirst(".time-chap")?.text(), dateZone)
         }
     }
 
@@ -167,7 +173,14 @@ abstract class TruyenGGVN : KeiSource() {
         client.get(getChapterUrl(chapter), cacheControl).use { response ->
             val document = response.asJsoup()
             return document.select(".page-chapter img").mapIndexed { index, element ->
-                Page(index, imageUrl = element.absUrl("src").ifEmpty { element.absUrl("data-original") })
+                Page(
+                    index,
+                    imageUrl = element.absUrl("src")
+                        .ifEmpty {
+                            element.absUrl("data-original")
+                                .ifEmpty { element.absUrl("data-cdn") }
+                        },
+                )
             }
         }
     }
