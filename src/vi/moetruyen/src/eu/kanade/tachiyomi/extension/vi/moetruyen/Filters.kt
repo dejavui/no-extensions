@@ -2,16 +2,24 @@ package eu.kanade.tachiyomi.extension.vi.moetruyen
 
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
+import kotlinx.serialization.Serializable
 
-fun getFilters(genres: List<GenreOption>?): FilterList = FilterList(
-    buildList {
-        add(StatusFilter())
-        add(SortFilter())
-        if (!genres.isNullOrEmpty()) {
-            add(GenreFilter(genres))
-        }
-    },
+@Serializable
+class GenreOption(
+    val name: String,
+    val id: String,
 )
+
+fun getFilters(genres: List<GenreOption>?): FilterList {
+    val filters = mutableListOf<Filter<*>>(
+        StatusFilter(),
+        SortFilter(),
+    )
+    if (!genres.isNullOrEmpty()) {
+        filters += GenreFilter(genres)
+    }
+    return FilterList(filters)
+}
 
 open class UriPartFilter(
     displayName: String,
