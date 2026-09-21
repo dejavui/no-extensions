@@ -8,10 +8,10 @@ keiyoushi {
     name = "Comick (Unoriginal)"
     versionCode = 5
     contentWarning = ContentWarning.MIXED
-    libVersion = "1.4"
+    libVersion = "1.6"
 
     listOf(
-        "en", "ru", "vi", "fr", "pl", "id", "tr", "it", "es", "uk",
+        "all", "en", "ru", "vi", "fr", "pl", "id", "tr", "it", "es", "uk",
         "de", "ko", "th", "ro", "ms", "ja", "sv", "no",
     ).forEach {
         source {
@@ -23,5 +23,9 @@ keiyoushi {
                 )
             }
         }
+    }
+
+    deeplink {
+        path("/comic/..*")
     }
 }
