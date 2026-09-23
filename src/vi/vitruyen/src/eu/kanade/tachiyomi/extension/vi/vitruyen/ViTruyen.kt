@@ -75,7 +75,8 @@ abstract class ViTruyen : KeiSource() {
             }
         }.build()
 
-        client.get(url).use { response ->
+        val headers = headers.newBuilder().set("Accept", "application/json").build()
+        client.get(url, headers).use { response ->
             return parseMangaPage(response)
         }
     }
