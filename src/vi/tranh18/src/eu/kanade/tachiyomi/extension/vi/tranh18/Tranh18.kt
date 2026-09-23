@@ -42,14 +42,14 @@ abstract class Tranh18 : KeiSource() {
             client.get(baseUrl)
         }
 
-        return request.use { parseMangaPage(it) }
+        return parseMangaPage(request)
     }
 
     // =============================== Latest ===============================
 
     override suspend fun getLatestUpdates(page: Int): MangasPage {
         val url = if (page > 1) "$baseUrl/update?page=$page" else "$baseUrl/update"
-        return client.get(url).use { parseMangaPage(it) }
+        return parseMangaPage(client.get(url))
     }
 
     // =============================== Search ===============================
@@ -73,7 +73,7 @@ abstract class Tranh18 : KeiSource() {
             addQueryParameter("page", page.toString())
         }.build()
 
-        return client.get(url).use { parseMangaPage(it) }
+        return parseMangaPage(client.get(url))
     }
 
     private fun parseMangaPage(response: Response): MangasPage {
@@ -100,8 +100,13 @@ abstract class Tranh18 : KeiSource() {
     }
 
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
-        if (url.host == baseUrl.toHttpUrl().host && url.pathSegments.isNotEmpty()) {
-            val manga = SManga.create().apply { setUrlWithoutDomain(url.toString()) }
+        if (url.host == baseUrl.toHttpUrl().host &&
+            url.pathSegments.firstOrNull() == "comic" &&
+            url.pathSegments.getOrNull(1)?.isNotBlank() == true
+        ) {
+            val manga = SManga.create().apply {
+                setUrlWithoutDomain("/comic/${url.pathSegments[1]}")
+            }
             return getMangaUpdate(manga, emptyList(), fetchDetails = true, fetchChapters = false).manga
         }
         return null
@@ -116,31 +121,28 @@ abstract class Tranh18 : KeiSource() {
         fetchChapters: Boolean,
     ): SMangaUpdate = client.get(getMangaUrl(manga)).use { response ->
         val document = response.asJsoup()
-        val details = parseMangaDetails(document)
+        val details = parseMangaDetails(document).apply {
+            url = manga.url
+        }
         val chaptersList = parseChapterList(document)
 
         SMangaUpdate(details, chaptersList)
     }
 
     private fun parseMangaDetails(document: Document): SManga = SManga.create().apply {
-        title = document.select(".info h1, .detail-main-info-title").text()
-        genre = document.select("p.tip:contains(Từ khóa) span a, .detail-main-info-class span a")
+        title = document.selectFirst(".info h1")!!.text()
+        genre = document.select("div.info:contains(Từ khóa) a[href*=tag]")
             .joinToString { it.text() }
         description = document.select("p.content").takeIf { it.isNotEmpty() }
             ?.joinToString("\n") { it.wholeText().trim().substringBefore("#").trim() }
             ?: document.select("p.detail-desc")
                 .joinToString("\n") { it.wholeText().trim().substringBefore("#").trim() }
-        author = document.selectFirst(".subtitle:contains(Tác giả：), .detail-main-info-author:contains(Tác giả：) a")
+        author = document.selectFirst("div.info:contains(Tác giả:) a[href*=author]")
             ?.text()?.removePrefix("Tác giả：")
         status = parseStatus(
-            document.select(".block:contains(Trạng thái)").takeIf { it.isNotEmpty() }
-                ?.text()
-                ?: document.select(".detail-list-title-1").text(),
+            document.selectFirst("div.info .bd-fact:nth-child(1)")?.text(),
         )
         thumbnail_url = document.selectFirst(".banner_detail_form .cover img")?.absUrl("src")
-            ?.ifEmpty {
-                document.selectFirst(".detail-main-cover img")?.absUrl("data-original")
-            }
     }
 
     private fun parseStatus(status: String?) = when {
