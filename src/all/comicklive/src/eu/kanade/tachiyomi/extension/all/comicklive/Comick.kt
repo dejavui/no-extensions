@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.extension.all.comicklive
 
 import androidx.preference.MultiSelectListPreference
 import androidx.preference.PreferenceScreen
+import eu.kanade.tachiyomi.network.await
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
@@ -350,11 +351,8 @@ abstract class Comick :
         return FilterList(filters)
     }
 
-    private val defaultLanguages: Set<String>
-        get() = if (lang == "all") emptySet() else setOf(lang)
-
     private val languageWhitelist: Set<String>
-        get() = preferences.getStringSet(LANGUAGE_WHITELIST, defaultLanguages).orEmpty()
+        get() = preferences.getStringSet(LANGUAGE_WHITELIST, setOf("en")).orEmpty()
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         MultiSelectListPreference(screen.context).apply {
@@ -363,7 +361,7 @@ abstract class Comick :
             summary = "Leave empty for All"
             entries = LANGUAGES.map { it.first }.toTypedArray()
             entryValues = LANGUAGES.map { it.second }.toTypedArray()
-            setDefaultValue(defaultLanguages)
+            setDefaultValue(setOf("en"))
         }.also(screen::addPreference)
     }
 
