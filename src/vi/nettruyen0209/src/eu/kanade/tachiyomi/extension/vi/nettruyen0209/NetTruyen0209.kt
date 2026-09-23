@@ -24,6 +24,8 @@ import java.util.Locale
 abstract class NetTruyen0209 : WPComics() {
     override val dateFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm dd-MM-yyyy", Locale.ROOT)
 
+    override val gmtOffset = null
+
     override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = apply {
         rateLimit(3)
     }
