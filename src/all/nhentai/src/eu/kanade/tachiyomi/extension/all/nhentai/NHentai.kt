@@ -62,7 +62,7 @@ abstract class NHentai :
 
     private val preferences: SharedPreferences = getPreferences()
 
-    private val webViewCookieManager: CookieManager by lazy { CookieManager.getInstance() }
+    private val webViewCookieManager: CookieManager get() = CookieManager.getInstance()
 
     private var displayFullTitle: Boolean = preferences.getString(TITLE_PREF, "full") == "full"
 
@@ -85,10 +85,10 @@ abstract class NHentai :
             rateLimit(1, 6.seconds) {
                 it.host == host && (it.encodedPath.contains("/search") || it.encodedPath.contains("/favorites"))
             }
-            rateLimit(1, 4.seconds) {
+            rateLimit(1, 6.seconds) {
                 it.host == host && it.encodedPath == "/api/v2/galleries"
             }
-            rateLimit(1, 3.seconds) {
+            rateLimit(1, 4.seconds) {
                 it.host == host && it.encodedPath.matches(Regex("/api/v2/galleries/\\d+/?"))
             }
 

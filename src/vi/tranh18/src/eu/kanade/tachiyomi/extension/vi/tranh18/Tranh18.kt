@@ -36,13 +36,8 @@ abstract class Tranh18 : KeiSource() {
     // ============================== Popular ===============================
 
     override suspend fun getPopularManga(page: Int): MangasPage {
-        val request = if (page > 1) {
-            client.get("$baseUrl/comics?page=$page")
-        } else {
-            client.get(baseUrl)
-        }
-
-        return parseMangaPage(request)
+        val url = if (page > 1) "$baseUrl/comics?page=$page" else baseUrl
+        return parseMangaPage(client.get(url))
     }
 
     // =============================== Latest ===============================
@@ -78,23 +73,32 @@ abstract class Tranh18 : KeiSource() {
 
     private fun parseMangaPage(response: Response): MangasPage {
         val document = response.asJsoup()
-        val mangas = document.select(".box-body ul li, .manga-list ul li").map { element ->
-            SManga.create().apply {
-                val sel = element.selectFirst(".mh-item, .manga-list-2-cover")!!
-                val a = sel.selectFirst("a")!!
-                setUrlWithoutDomain(a.absUrl("href"))
-                title = a.attr("title")
-                thumbnail_url = sel.selectFirst("p.mh-cover")?.attr("style")?.let { style ->
-                    when {
-                        style.contains("url(https://") -> style.substringAfter("url(").substringBefore(")")
-                        style.contains("url(") -> baseUrl + style.substringAfter("url(").substringBefore(")")
-                        else -> null
+        val mangas = document.select(".mh-item, .mh-itme-top")
+            .mapNotNull { element ->
+                val sel = if (element.tagName() == "li") {
+                    element.selectFirst(".mh-item, .manga-list-2-cover") ?: element
+                } else {
+                    element
+                }
+                val a = sel.selectFirst("a") ?: return@mapNotNull null
+                val href = a.absUrl("href").ifEmpty { return@mapNotNull null }
+
+                SManga.create().apply {
+                    setUrlWithoutDomain(href)
+                    title = a.attr("title").ifEmpty {
+                        sel.selectFirst(".title, h2, h3, .mh-item-detal h2")?.text() ?: a.text()
                     }
-                } ?: sel.selectFirst("img")?.run {
-                    absUrl("data-original").ifEmpty { absUrl("src") }
+                    thumbnail_url = sel.selectFirst("p.mh-cover")?.attr("style")?.let { style ->
+                        when {
+                            style.contains("url(https://") -> style.substringAfter("url(").substringBefore(")")
+                            style.contains("url(") -> baseUrl + style.substringAfter("url(").substringBefore(")")
+                            else -> null
+                        }
+                    } ?: sel.selectFirst("img")?.run {
+                        absUrl("data-original").ifEmpty { absUrl("src") }
+                    }
                 }
             }
-        }
         val hasNextPage = document.selectFirst(".page-pagination li.active ~ li:not(.disabled) a") != null
         return MangasPage(mangas, hasNextPage)
     }
@@ -130,7 +134,7 @@ abstract class Tranh18 : KeiSource() {
     }
 
     private fun parseMangaDetails(document: Document): SManga = SManga.create().apply {
-        title = document.selectFirst(".info h1")!!.text()
+        title = document.selectFirst(".info h1, .detail-info h1, h1")?.text() ?: ""
         genre = document.select("div.info:contains(Từ khóa) a[href*=tag]")
             .joinToString { it.text() }
         description = document.select("p.content").takeIf { it.isNotEmpty() }
@@ -155,9 +159,9 @@ abstract class Tranh18 : KeiSource() {
 
     private fun parseChapterList(document: Document): List<SChapter> = document
         .select("ul.detail-list-select li")
-        .map { element ->
+        .mapNotNull { element ->
+            val a = element.selectFirst("a") ?: return@mapNotNull null
             SChapter.create().apply {
-                val a = element.selectFirst("a")!!
                 setUrlWithoutDomain(a.absUrl("href"))
                 name = a.text()
                 chapter_number = CHAPTER_NUMBER_REGEX.find(name)?.value?.toFloatOrNull() ?: 0f
