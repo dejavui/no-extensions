@@ -210,7 +210,7 @@ abstract class ZetTruyen : KeiSource() {
 
     // ============================== Pages =================================
 
-    override suspend fun getPageList(chapter: SChapter): List<Page> = client.get("$baseUrl${chapter.url}").use { response ->
+    override suspend fun getPageList(chapter: SChapter): List<Page> = client.get(getChapterUrl(chapter)).use { response ->
         val document = response.asJsoup()
         document.select("div.center img").mapIndexed { index, element ->
             Page(index, imageUrl = element.absUrl("src"))

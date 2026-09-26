@@ -186,7 +186,7 @@ abstract class TruyenQQComVN : KeiSource() {
             return response.asJsoup()
                 .select(".inner img.lazy")
                 .mapIndexed { idx, it ->
-                    Page(idx, imageUrl = it.attr("data-src").ifEmpty { it.absUrl("src") })
+                    Page(idx, imageUrl = it.absUrl("data-src").ifEmpty { it.absUrl("src") })
                 }
         }
     }
