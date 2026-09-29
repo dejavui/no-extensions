@@ -30,6 +30,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Response
 import org.jsoup.nodes.Document
 import kotlin.text.isNotBlank
+import kotlin.time.Duration.Companion.seconds
 
 @Source
 abstract class GocTruyenTranhVui :
@@ -41,7 +42,9 @@ abstract class GocTruyenTranhVui :
 
     override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = apply {
         addInterceptor(::authInterceptor)
-        rateLimit(3)
+        rateLimit(1, 2.seconds) {
+            it.host == baseUrl.toHttpUrl().host && it.encodedPath.startsWith("/api/")
+        }
     }
 
     override fun Headers.Builder.configureHeaders(): Headers.Builder = apply {
