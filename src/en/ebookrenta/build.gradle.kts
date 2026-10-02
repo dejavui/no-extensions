@@ -5,13 +5,13 @@ plugins {
 }
 
 keiyoushi {
-    name = "HotComics"
-    versionCode = 1
-    contentWarning = ContentWarning.NSFW
+    name = "EbookRenta"
+    versionCode = 0
+    contentWarning = ContentWarning.MIXED
     libVersion = "1.6"
 
     source {
+        baseUrl = "https://www.ebookrenta.com"
         lang = "en"
-        baseUrl = "https://hotcomics.io"
     }
 }

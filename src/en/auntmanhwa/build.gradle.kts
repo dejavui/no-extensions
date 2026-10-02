@@ -5,13 +5,14 @@ plugins {
 }
 
 keiyoushi {
-    name = "HotComics"
-    versionCode = 1
+    name = "Aunt Manhwa"
+    theme = "madara"
+    versionCode = 0
     contentWarning = ContentWarning.NSFW
     libVersion = "1.6"
 
     source {
+        baseUrl = "https://auntmanhwa.com"
         lang = "en"
-        baseUrl = "https://hotcomics.io"
     }
 }

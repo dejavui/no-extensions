@@ -5,13 +5,14 @@ plugins {
 }
 
 keiyoushi {
-    name = "HotComics"
-    versionCode = 1
-    contentWarning = ContentWarning.NSFW
+    name = "Manga Eclipse"
+    theme = "madara"
+    versionCode = 0
+    contentWarning = ContentWarning.SAFE
     libVersion = "1.6"
 
     source {
+        baseUrl = "https://mangaeclipse.com"
         lang = "en"
-        baseUrl = "https://hotcomics.io"
     }
 }
