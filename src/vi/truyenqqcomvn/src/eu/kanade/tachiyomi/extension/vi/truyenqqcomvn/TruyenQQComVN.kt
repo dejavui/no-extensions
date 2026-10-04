@@ -183,7 +183,12 @@ abstract class TruyenQQComVN : KeiSource() {
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
         client.get(getChapterUrl(chapter)).use { response ->
-            return response.asJsoup()
+            val document = response.asJsoup()
+            val loginBox = document.selectFirst("div.login-required-box")
+            if (loginBox != null) {
+                throw Exception(loginBox.text().trim())
+            }
+            return document
                 .select(".inner img.lazy")
                 .mapIndexed { idx, it ->
                     Page(idx, imageUrl = it.absUrl("data-src").ifEmpty { it.absUrl("src") })
