@@ -21,7 +21,6 @@ import keiyoushi.utils.applicationContext
 import keiyoushi.utils.asJsoup
 import keiyoushi.utils.firstInstanceOrNull
 import keiyoushi.utils.parseAs
-import keiyoushi.utils.textOrNull
 import keiyoushi.utils.toJsonElement
 import keiyoushi.utils.toJsonRequestBody
 import kotlinx.coroutines.CompletableDeferred
@@ -190,7 +189,7 @@ abstract class MoeTruyen : KeiSource() {
 
         val slug = url.pathSegments.getOrNull(1) ?: return null
         val manga = SManga.create().apply { setUrlWithoutDomain("/manga/$slug") }
-        return fetchMangaUpdate(manga, emptyList(), true, fetchChapters = false).manga
+        return fetchMangaUpdate(manga, emptyList(), true, false).manga
     }
 
     // ============================== Details ===============================
@@ -207,24 +206,17 @@ abstract class MoeTruyen : KeiSource() {
             }
             ?.select("a.inline-link")
             ?.joinToString { it.text() }
+            ?.ifEmpty { null }
         genre = document.select(".manga-detail-genre-chips a.chip")
             .joinToString { it.text() }
             .ifEmpty { null }
-        description = buildString {
-            document.selectFirst("span:contains(Tên khác:) + span")?.textOrNull()?.let {
-                append("Tên khác: ", it, "\n\n")
-            }
-
-            document.selectFirst("[data-description-content]")
-                ?.wholeText()?.trim()
-                ?.takeIf { it.isNotEmpty() }
-                ?.let(::append)
-                ?: document.selectFirst(".manga-description__text")
-                    ?.wholeText()?.trim()
-                    ?.takeIf { it.isNotEmpty() }
-                    ?.let(::append)
-        }.trim()
-        status = parseStatus(document.selectFirst(".manga-status-pill")?.textOrNull())
+        description = document.selectFirst("[data-description-content]")
+            ?.text()
+            ?.ifEmpty { null }
+            ?: document.selectFirst(".manga-description__text")
+                ?.text()
+                ?.ifEmpty { null }
+        status = parseStatus(document.selectFirst(".manga-status-pill")?.text())
         thumbnail_url = document.selectFirst(".detail-cover img")?.absUrl("src")
     }
 
@@ -331,7 +323,7 @@ abstract class MoeTruyen : KeiSource() {
     // ============================== Pages =================================
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
-        val chapterUrl = getChapterUrl(chapter)
+        val chapterUrl = "$baseUrl${chapter.url}"
         var document = client.get(chapterUrl).asJsoup()
 
         if (isCommentLocked(document)) {
@@ -362,7 +354,7 @@ abstract class MoeTruyen : KeiSource() {
                 if (pages.isNotEmpty()) {
                     pages.forEach { page ->
                         val grant = page.grant
-                            ?: throw IllegalStateException($$"IMGX grant missing page=${page.pageIndex + 1}")
+                            ?: throw IllegalStateException("IMGX grant missing page=\${page.pageIndex + 1}")
                         imgxGrants[page.downloadUrl] = grant to page.storageKey
                     }
                     return pages
@@ -574,7 +566,7 @@ abstract class MoeTruyen : KeiSource() {
     override val supportsRelatedMangas get() = true
 
     override suspend fun fetchRelatedMangaList(manga: SManga): List<SManga> {
-        val document = client.get(getMangaUrl(manga)).asJsoup()
+        val document = client.get("$baseUrl${manga.url}").asJsoup()
         val section = document.selectFirst("section[aria-labelledby=manga-related-similar-title]")
             ?: return emptyList()
 
