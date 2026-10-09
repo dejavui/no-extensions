@@ -12,21 +12,20 @@ import keiyoushi.network.post
 import keiyoushi.network.rateLimit
 import keiyoushi.utils.asJsoup
 import keiyoushi.utils.parseAs
-import kotlinx.serialization.SerialName
+import keiyoushi.utils.toJsonRequestBody
 import kotlinx.serialization.Serializable
 import okhttp3.FormBody
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.jsoup.nodes.Document
-import java.security.SecureRandom
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.time.Duration.Companion.seconds
 
 @Source
 abstract class HentaiCB : Madara() {
-
     override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = apply {
         val host = baseUrl.toHttpUrl().host
         rateLimit(3) { it.host == host && it.encodedPath.contains("/wp-content/uploads/") }
@@ -127,92 +126,74 @@ abstract class HentaiCB : Madara() {
         val chapterUrl = getChapterUrl(chapter)
         val document = client.get(chapterUrl).asJsoup()
 
-        val masr2Token = document.selectFirst("#manga-secure-reader")
-            ?.attr("data-masr2-token")
+        val readerElement = document.selectFirst(".mcld-chapter-reactions, #manga-secure-reader, [data-chapter-id]")
 
-        if (masr2Token == null) {
+        val chapterId = readerElement?.attr("data-chapter-id")?.toIntOrNull()
+            ?: readerElement?.attr("data-chapter")?.toIntOrNull()
+        val mangaId = readerElement?.attr("data-manga-id")?.toIntOrNull()
+            ?: readerElement?.attr("data-manga")?.toIntOrNull()
+
+        if (chapterId == null || mangaId == null) {
             val listStylesDoc = if (document.selectFirst("#single-pager") != null) {
-                client.get(chapterUrl.toHttpUrl().newBuilder().addQueryParameter("style", "list").build()).asJsoup()
+                client.get(chapterUrl.toHttpUrl().newBuilder().build()).asJsoup()
             } else {
                 document
             }
             return super.parsePages(listStylesDoc).distinctBy { it.imageUrl }
         }
 
-        val clientId = generateClientId() // Fix CID for the entire chapter
-        var token: String? = masr2Token
-        val allImages = mutableListOf<String>()
-        var retries = 0
+        val pageUrlString = "$baseUrl/wp-json/manga-reader/v3/pages"
 
-        while (!token.isNullOrEmpty() && retries < 25) {
-            val pagesUrl = baseUrl.toHttpUrl().newBuilder()
-                .addPathSegments("wp-json/manga-reader/v2/pages")
-                .addQueryParameter("token", token)
-                .addQueryParameter("cid", clientId)
-                .build()
+        val headers = headersBuilder()
+            .set("Referer", chapterUrl)
+            .set("Accept", "application/json")
+            .set("Cache-Control", "no-cache")
+            .set("X-MSR-Request", "1")
+            .build()
 
-            val challengeHeader = headersBuilder()
-                .set("Referer", chapterUrl)
-                .set("Accept", "application/json")
-                .build()
+        val payload = PagesRequestDto(
+            chapter = chapterId,
+            manga = mangaId,
+        )
 
-            val pages = try {
-                val response = client.get(pagesUrl, challengeHeader)
-                response.parseAs<PagesResponse>()
-            } catch (e: Exception) {
-                if (retries < 5) {
-                    retries++
-                    continue
-                } else {
-                    throw e
-                }
-            }
+        val pages = client.post(pageUrlString, headers, payload.toJsonRequestBody())
+            .parseAs<PagesResponse>()
 
-            // Handle rate limiting
-            if (pages.code == "too_fast") {
-                retries++
-                continue
-            }
-
-            // Handle session mismatch
-            if (pages.code == "client_mismatch") {
-                // If this happens even with fixed CID, the token might have expired
-                throw Exception("Lỗi phiên đọc (Client Mismatch): ${pages.message}")
-            }
-
-            if (pages.items.isEmpty() && pages.done) break
-            if (pages.items.isEmpty()) {
-                retries++
-                continue
-            }
-
-            allImages.addAll(pages.items)
-            token = if (pages.done) null else pages.nextToken
+        if (pages.code == "msr_verify_required") {
+            throw Exception("Lỗi: ${pages.message}")
         }
 
-        if (allImages.isEmpty()) throw Exception("Không lấy được danh sách ảnh (Server chặn hoặc timeout)")
+        if (pages.code == "400" || pages.code == "msr_bad_request") {
+            throw Exception("Lỗi: ${pages.message}")
+        }
 
-        return allImages.mapIndexed { i, imageUrl ->
+        if (pages.items.isEmpty()) {
+            throw Exception("Không lấy được danh sách trang truyện")
+        }
+
+        return pages.items.mapIndexed { i, imageUrl ->
             Page(i, chapterUrl, imageUrl)
         }
     }
 
-    private fun generateClientId(): String {
-        val random = SecureRandom()
-        val bytes = ByteArray(16)
-        random.nextBytes(bytes)
-        return bytes.joinToString("") { "%02x".format(it) }
+    override fun imageRequest(page: Page): Request {
+        val requestHeaders = headers.newBuilder()
+            .removeAll("Origin")
+            .build()
+        return super.imageRequest(page).newBuilder().headers(requestHeaders).build()
     }
+
+    @Serializable
+    private class PagesRequestDto(
+        val chapter: Int,
+        val manga: Int,
+    )
 
     @Serializable
     private class PagesResponse(
         val items: List<String> = emptyList(),
-        val done: Boolean = false,
         val protocol: Int = 0,
-        val cursor: Int = 0,
-        @SerialName("next_cursor") val nextCursor: Int = 0,
         val count: Int = 0,
-        @SerialName("next_token") val nextToken: String? = null,
         val code: String? = null,
         val message: String? = null,
     )
