@@ -32,6 +32,7 @@ abstract class HentaiCB : Madara() {
         rateLimit(3) { it.host == host && it.encodedPath.contains("/ajax/chapters/") }
         rateLimit(1, 2.seconds) { it.host == baseUrl.toHttpUrl().host }
     }
+
     override fun Headers.Builder.configureHeaders(): Headers.Builder = this
         .removeAll("Origin")
 
@@ -126,12 +127,14 @@ abstract class HentaiCB : Madara() {
         val chapterUrl = getChapterUrl(chapter)
         val document = client.get(chapterUrl).asJsoup()
 
-        val readerElement = document.selectFirst(".mcld-chapter-reactions, #manga-secure-reader, [data-chapter-id]")
-
+        val readerElement =
+            document.selectFirst(".mcld-chapter-reactions")
+                ?: document.selectFirst("[data-chapter-id], [data-manga-id]")
+                ?: document.selectFirst(".reading-content .msr-reader")
         val chapterId = readerElement?.attr("data-chapter-id")?.toIntOrNull()
-            ?: readerElement?.attr("data-chapter")?.toIntOrNull()
+            ?: readerElement?.attr("data-msr-chapter")?.toIntOrNull()
         val mangaId = readerElement?.attr("data-manga-id")?.toIntOrNull()
-            ?: readerElement?.attr("data-manga")?.toIntOrNull()
+            ?: readerElement?.attr("data-msr-manga")?.toIntOrNull()
 
         if (chapterId == null || mangaId == null) {
             val listStylesDoc = if (document.selectFirst("#single-pager") != null) {
@@ -156,15 +159,11 @@ abstract class HentaiCB : Madara() {
             manga = mangaId,
         )
 
-        val pages = client.post(pageUrlString, headers, payload.toJsonRequestBody())
+        val pages = client.post(pageUrlString, headers, payload.toJsonRequestBody(), ensureSuccess = false)
             .parseAs<PagesResponse>()
 
-        if (pages.code == "msr_verify_required") {
-            throw Exception("Lỗi: ${pages.message}")
-        }
-
-        if (pages.code == "400" || pages.code == "msr_bad_request") {
-            throw Exception("Lỗi: ${pages.message}")
+        if (!pages.code.isNullOrEmpty()) {
+            throw Exception(pages.message ?: "Lỗi ${pages.code}")
         }
 
         if (pages.items.isEmpty()) {
