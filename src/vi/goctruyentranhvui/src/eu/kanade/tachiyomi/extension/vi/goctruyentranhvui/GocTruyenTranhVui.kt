@@ -27,6 +27,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
+import okhttp3.Request
 import okhttp3.Response
 import org.jsoup.nodes.Document
 import kotlin.text.isNotBlank
@@ -45,10 +46,6 @@ abstract class GocTruyenTranhVui :
         rateLimit(1, 2.seconds) {
             it.host == baseUrl.toHttpUrl().host && it.encodedPath.startsWith("/api/")
         }
-    }
-
-    override fun Headers.Builder.configureHeaders(): Headers.Builder = apply {
-        removeAll("Origin")
     }
 
     private val xhrHeaders: Headers
@@ -237,6 +234,13 @@ abstract class GocTruyenTranhVui :
         }
 
         return pages ?: throw Exception("Chưa đăng nhập trong WebView. Hoặc không có ảnh!")
+    }
+
+    override fun imageRequest(page: Page): Request {
+        val requestHeaders = headers.newBuilder()
+            .removeAll("Origin")
+            .build()
+        return super.imageRequest(page).newBuilder().headers(requestHeaders).build()
     }
 
     private var tokenCache: String? = null

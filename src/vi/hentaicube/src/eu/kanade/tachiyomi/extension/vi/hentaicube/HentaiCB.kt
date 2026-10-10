@@ -15,7 +15,6 @@ import keiyoushi.utils.parseAs
 import keiyoushi.utils.toJsonRequestBody
 import kotlinx.serialization.Serializable
 import okhttp3.FormBody
-import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -32,9 +31,6 @@ abstract class HentaiCB : Madara() {
         rateLimit(3) { it.host == host && it.encodedPath.contains("/ajax/chapters/") }
         rateLimit(1, 2.seconds) { it.host == baseUrl.toHttpUrl().host }
     }
-
-    override fun Headers.Builder.configureHeaders(): Headers.Builder = this
-        .removeAll("Origin")
 
     override val chapterDateFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.ROOT)
 
