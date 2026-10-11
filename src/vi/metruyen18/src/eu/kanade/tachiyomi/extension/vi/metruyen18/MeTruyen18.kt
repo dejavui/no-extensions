@@ -20,7 +20,7 @@ import java.util.Locale
 
 @Source
 abstract class MeTruyen18 : MadaraNoAjax() {
-    override val chapterDateFormat = DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.ROOT)
+    override val chapterDateFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.ROOT)
     override val supportsRelatedMangas = false
     override val genreDirectory = "the-loai"
     override fun chapterListSelector() = "#chapterlist li.a-h"
