@@ -10,16 +10,21 @@ keiyoushi {
     contentWarning = ContentWarning.MIXED
     libVersion = "1.6"
 
-    source {
-        lang = "all"
-        baseUrl {
-            mirrors(
-                "https://comick.live",
-                "https://comick.art",
-            )
+    listOf(
+        "all", "en", "ru", "vi", "fr", "pl", "id", "tr", "it", "es", "uk",
+        "de", "ko", "th", "ro", "ms", "ja", "sv", "no",
+    ).forEach {
+        source {
+            lang = it
+            baseUrl {
+                mirrors(
+                    "https://comick.live",
+                    "https://comick.art",
+                )
+            }
         }
-        id = 4972933717624256217
     }
+
     deeplink {
         path("/comic/..*")
     }
