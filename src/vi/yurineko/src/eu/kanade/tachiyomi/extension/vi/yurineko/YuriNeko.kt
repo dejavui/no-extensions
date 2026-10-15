@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.extension.vi.yurineko
 
+import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -205,9 +206,9 @@ abstract class YuriNeko : KeiSource() {
     ): SManga {
         val details = client.get("$apiUrl/mangas/$mangaId").parseAs<MangaDetailsDto>()
 
-        val authors = details.linkedAuthors.joinToString(transform = LinkedPersonDto::name)
-        val artists = details.linkedArtists.joinToString(transform = LinkedPersonDto::name)
-        val genres = details.tags.joinToString(transform = TagDto::name)
+        val authors = details.linkedAuthors.map(LinkedPersonDto::name).joinToString()
+        val artists = details.linkedArtists.map(LinkedPersonDto::name).joinToString()
+        val genres = details.tags.map(TagDto::name).joinToString()
 
         return SManga.create().apply {
             setUrlWithoutDomain(mangaUrl)
@@ -237,8 +238,8 @@ abstract class YuriNeko : KeiSource() {
     ): SMangaUpdate {
         val cachedMangaId = manga.memo["mangaId"]?.stringOrNull
         val mangaId = cachedMangaId
-            ?: getMangaUrl(manga).toHttpUrl().mangaIdOrNull()
-            ?: extractMangaIdFromDocument(client.get(getMangaUrl(manga)).asJsoup())
+            ?: "$baseUrl${manga.url}".toHttpUrl().mangaIdOrNull()
+            ?: extractMangaIdFromDocument(client.get("$baseUrl${manga.url}").asJsoup())
             ?: throw IllegalArgumentException("Không tìm thấy manga id từ URL: ${manga.url}")
         return coroutineScope {
             val updatedManga = async {
@@ -334,7 +335,7 @@ abstract class YuriNeko : KeiSource() {
 
     // ============================== Pages =================================
     override suspend fun getPageList(chapter: SChapter): List<Page> {
-        val document = client.get(getChapterUrl(chapter)).asJsoup()
+        val document = client.get("$baseUrl${chapter.url}").asJsoup()
         val imageUrls = parsePageUrls(document)
 
         return imageUrls.mapIndexed { index, imageUrl ->
@@ -391,7 +392,7 @@ abstract class YuriNeko : KeiSource() {
             xIk?.let { add("x-ik", it) }
         }.build()
 
-        return super.imageRequest(page).newBuilder().url(imageUrl).headers(imageHeaders).build()
+        return GET(imageUrl, imageHeaders)
     }
 
     private fun cdnImageUrl(path: String?): String? {
@@ -442,7 +443,9 @@ abstract class YuriNeko : KeiSource() {
     }
 
     private fun extractMangaIdFromDocument(document: Document): String? = document.select("a[href*=/manga/]")
-        .firstNotNullOfOrNull { it.absUrl("href").toHttpUrlOrNull()?.mangaIdOrNull() }
+        .asSequence()
+        .mapNotNull { it.absUrl("href").toHttpUrlOrNull()?.mangaIdOrNull() }
+        .firstOrNull()
 
     private fun HttpUrl.mangaIdOrNull(): String? {
         val mangaIndex = pathSegments.indexOf("manga")
