@@ -664,7 +664,7 @@ abstract class Comix :
         val base = pages.baseUrl.trimEnd('/')
         return pages.items.mapIndexed { index, img ->
             val full = (if (img.url.startsWith("http")) img.url else "$base/${img.url.trimStart('/')}").toHttpUrl()
-            // V3 pages need the query flag so the server returns grid-scramble headers.
+            // V3 pages need the query flag so the server returns grid-scramble headers
             val isV3 = img.s == 1 || "v3" in full.queryParameterNames
             val url = full.newBuilder().apply {
                 if (isV3 && "v3" !in full.queryParameterNames) {
