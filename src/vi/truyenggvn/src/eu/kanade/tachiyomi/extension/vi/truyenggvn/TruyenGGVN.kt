@@ -18,6 +18,7 @@ import okhttp3.CacheControl
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.jsoup.nodes.Document
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -183,6 +184,13 @@ abstract class TruyenGGVN : KeiSource() {
                 )
             }
         }
+    }
+
+    override fun imageRequest(page: Page): Request {
+        val requestHeaders = headers.newBuilder()
+            .removeAll("Origin")
+            .build()
+        return super.imageRequest(page).newBuilder().headers(requestHeaders).build()
     }
 
     // ============================= Filters ================================
