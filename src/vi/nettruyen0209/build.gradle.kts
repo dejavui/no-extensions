@@ -1,5 +1,4 @@
 import io.github.keiyoushi.gradle.api.ContentWarning
-import jdk.internal.net.http.common.TimeSource.source
 
 plugins {
     alias(kei.plugins.extension)
