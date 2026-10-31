@@ -201,7 +201,7 @@ abstract class TruyenQQComVN : KeiSource() {
         val requestHeaders = headers.newBuilder()
             .removeAll("Origin")
             .build()
-        return super.imageRequest(page).newBuilder().headers(requestHeaders).build()
+        return super.getImageRequest(page).newBuilder().headers(requestHeaders).build()
     }
 
     // ============================== Filters ===============================
