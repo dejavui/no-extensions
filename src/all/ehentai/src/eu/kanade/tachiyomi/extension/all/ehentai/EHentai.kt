@@ -254,7 +254,7 @@ abstract class EHentai :
         }
     }
 
-    override fun imageRequest(page: Page): Request = Request.Builder()
+    override fun getImageRequest(page: Page): Request = Request.Builder()
         .url(page.imageUrl!!)
         .header("Referer", page.url)
         .header("Accept", "image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")

@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.extension.vi.daomeoden
 
+import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
@@ -299,11 +300,11 @@ abstract class DaoMeoDen : KeiSource() {
         }.distinctBy { it.imageUrl }
     }
 
-    override fun imageRequest(page: Page): Request {
+    override fun getImageRequest(page: Page): Request {
         val imageHeaders = headers.newBuilder()
             .set("Referer", page.url)
             .build()
-        return super.imageRequest(page).newBuilder().headers(imageHeaders).build()
+        return GET(page.imageUrl!!, imageHeaders)
     }
 
     // ============================== Filters ===============================

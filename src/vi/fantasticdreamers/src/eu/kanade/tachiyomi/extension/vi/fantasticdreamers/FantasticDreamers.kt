@@ -114,11 +114,11 @@ abstract class FantasticDreamers : KeiSource() {
         }
     }
 
-    override fun imageRequest(page: Page): Request {
+    override fun getImageRequest(page: Page): Request {
         val requestHeaders = headers.newBuilder()
             .removeAll("Origin")
             .build()
-        return super.imageRequest(page).newBuilder().headers(requestHeaders).build()
+        return super.getImageRequest(page).newBuilder().headers(requestHeaders).build()
     }
 
     private fun apiUrl(label: String): HttpUrl.Builder = baseUrl.toHttpUrl().newBuilder()

@@ -236,11 +236,11 @@ abstract class GocTruyenTranhVui :
         return pages ?: throw Exception("Chưa đăng nhập trong WebView. Hoặc không có ảnh!")
     }
 
-    override fun imageRequest(page: Page): Request {
+    override fun getImageRequest(page: Page): Request {
         val requestHeaders = headers.newBuilder()
             .removeAll("Origin")
             .build()
-        return super.imageRequest(page).newBuilder().headers(requestHeaders).build()
+        return super.getImageRequest(page).newBuilder().headers(requestHeaders).build()
     }
 
     private var tokenCache: String? = null

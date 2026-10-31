@@ -182,7 +182,7 @@ abstract class Hitomi : KeiSource() {
         }
     }
 
-    override fun imageRequest(page: Page): Request {
+    override fun getImageRequest(page: Page): Request {
         val imageHeaders = headersBuilder()
             .set("Accept", "image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
             .set("Referer", page.url)

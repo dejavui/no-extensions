@@ -186,7 +186,7 @@ abstract class TruyenGGVN : KeiSource() {
         }
     }
 
-    override fun imageRequest(page: Page): Request {
+    override fun getImageRequest(page: Page): Request {
         val requestHeaders = headers.newBuilder()
             .removeAll("Origin")
             .build()
