@@ -164,7 +164,7 @@ abstract class Hitomi : KeiSource() {
             .substringAfterLast("-")
             .substringBefore(".")
 
-        val gallery = client.get("$ltnUrl/galleries/$id.js").parseScriptAs<Gallery>()
+        val gallery = client.get("$ltnUrl/galleries/$id.js", Fetch.SCRIPT).parseScriptAs<Gallery>()
 
         return gallery.files.mapIndexed { idx, img ->
             // actual logic in imageUrlInterceptor
@@ -200,7 +200,8 @@ abstract class Hitomi : KeiSource() {
     // core logic
 
     private suspend fun getGalleriesIndexVersion(): String = versionMutex.withLock {
-        galleriesIndexVersion ?: client.get("$ltnUrl/galleriesindex/version?_=${Clock.System.now().toEpochMilliseconds()}").use { it.body.string() }
+        galleriesIndexVersion ?: client.get("$ltnUrl/galleriesindex/version?_=${Clock.System.now().toEpochMilliseconds()}", Fetch.SCRIPT)
+            .use { it.body.string() }
             .also { galleriesIndexVersion = it }
     }
 
@@ -223,7 +224,7 @@ abstract class Hitomi : KeiSource() {
         val tries = 5
         repeat(tries) { attempt ->
             try {
-                return client.get(url, headers, cacheControl).use { it.body.bytes() }
+                return client.get(url, headers, Fetch.NONE, cacheControl).use { it.body.bytes() }
             } catch (e: StreamResetException) {
                 if (e.errorCode == ErrorCode.INTERNAL_ERROR) {
                     if (attempt == tries - 1) throw e // last attempt, rethrow
@@ -597,7 +598,7 @@ abstract class Hitomi : KeiSource() {
         map { id ->
             async {
                 try {
-                    client.get("$ltnUrl/galleries/$id.js")
+                    client.get("$ltnUrl/galleries/$id.js", Fetch.SCRIPT)
                         .parseScriptAs<Gallery>()
                         .toSManga()
                 } catch (e: IllegalArgumentException) {
@@ -663,7 +664,7 @@ abstract class Hitomi : KeiSource() {
             return@withLock
         }
 
-        val ggScript = client.get("$ltnUrl/gg.js?_=$now").use { it.body.string() }
+        val ggScript = client.get("$ltnUrl/gg.js?_=$now", Fetch.SCRIPT).use { it.body.string() }
 
         val subdomainOffsetDefault = ggScriptOffsetRegex.find(ggScript)!!.groupValues[1].toInt()
         val o = ggScriptBreakRegex.find(ggScript)!!.groupValues[1].toInt()
