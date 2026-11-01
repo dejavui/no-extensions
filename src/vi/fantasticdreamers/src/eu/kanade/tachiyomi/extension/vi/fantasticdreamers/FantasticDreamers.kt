@@ -7,6 +7,7 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import keiyoushi.annotation.Source
+import keiyoushi.network.Fetch
 import keiyoushi.network.get
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
@@ -37,7 +38,7 @@ abstract class FantasticDreamers : KeiSource() {
             .addQueryParameter("max-results", "20")
             .build()
 
-        return client.get(url).use { response ->
+        return client.get(url, Fetch.DOCUMENT).use { response ->
             val feed = response.parseAs<BloggerFeedDto>()
             val mangas = feed.feed?.entry?.map { it.toSManga(baseUrl) }.orEmpty()
             val hasNextPage = (feed.feed?.totalResults?.t?.toIntOrNull() ?: 0) > page * 20
@@ -51,7 +52,7 @@ abstract class FantasticDreamers : KeiSource() {
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate = coroutineScope {
-        val document = client.get(getMangaUrl(manga)).use { it.asJsoup() }
+        val document = client.get(getMangaUrl(manga), Fetch.DOCUMENT).use { it.asJsoup() }
 
         val mangaDetailsDeferred = if (fetchDetails) {
             async {
@@ -91,7 +92,7 @@ abstract class FantasticDreamers : KeiSource() {
                     .addQueryParameter("max-results", "150")
                     .build()
 
-                client.get(url).use { feedResponse ->
+                client.get(url, Fetch.DOCUMENT).use { feedResponse ->
                     val feed = feedResponse.parseAs<BloggerFeedDto>()
                     feed.feed?.entry?.filter { it.category?.any { cat -> cat.term == "Chapter" } == true }
                         ?.map { it.toSChapter(baseUrl) } ?: emptyList()
@@ -107,7 +108,7 @@ abstract class FantasticDreamers : KeiSource() {
         )
     }
 
-    override suspend fun getPageList(chapter: SChapter): List<Page> = client.get(getChapterUrl(chapter)).use { response ->
+    override suspend fun getPageList(chapter: SChapter): List<Page> = client.get(getChapterUrl(chapter), Fetch.DOCUMENT).use { response ->
         val document = response.asJsoup()
         document.select(".check-box img").mapIndexed { index, element ->
             Page(index, imageUrl = element.attr("abs:src"))

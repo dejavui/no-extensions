@@ -8,6 +8,7 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import keiyoushi.annotation.Source
+import keiyoushi.network.Fetch
 import keiyoushi.network.get
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
@@ -57,7 +58,7 @@ abstract class TruyenQQComVN : KeiSource() {
                 .addQueryParameter("s", query)
                 .addPage(page)
                 .build()
-            return parseMangaPage(client.get(url).asJsoup())
+            return parseMangaPage(client.get(url, Fetch.DOCUMENT).asJsoup())
         }
 
         val softFilter = filters.firstInstanceOrNull<SoftFilter>()
@@ -85,7 +86,7 @@ abstract class TruyenQQComVN : KeiSource() {
             addPage(page)
         }.build()
 
-        return parseMangaPage(client.get(url).asJsoup())
+        return parseMangaPage(client.get(url, Fetch.DOCUMENT).asJsoup())
     }
 
     private fun HttpUrl.Builder.addPage(page: Int): HttpUrl.Builder = apply {
@@ -115,7 +116,7 @@ abstract class TruyenQQComVN : KeiSource() {
             ?: return null
         val path = "/$slug"
 
-        return parseMangaDetails(client.get("$baseUrl$path").asJsoup()).apply {
+        return parseMangaDetails(client.get("$baseUrl$path", Fetch.DOCUMENT).asJsoup()).apply {
             setUrlWithoutDomain(path)
         }
     }
@@ -128,7 +129,7 @@ abstract class TruyenQQComVN : KeiSource() {
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        client.get(getMangaUrl(manga)).use { response ->
+        client.get(getMangaUrl(manga), Fetch.DOCUMENT).use { response ->
             val document = response.asJsoup()
             return SMangaUpdate(parseMangaDetails(document), parseChapterList(document))
         }
@@ -183,7 +184,7 @@ abstract class TruyenQQComVN : KeiSource() {
     // =============================== Pages ================================
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
-        client.get(getChapterUrl(chapter)).use { response ->
+        client.get(getChapterUrl(chapter), Fetch.DOCUMENT).use { response ->
             val document = response.asJsoup()
             val loginBox = document.selectFirst("div.login-required-box")
             if (loginBox != null) {

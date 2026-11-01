@@ -10,6 +10,7 @@ import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
 import keiyoushi.annotation.Source
+import keiyoushi.network.Fetch
 import keiyoushi.network.get
 import keiyoushi.source.KeiSource
 import keiyoushi.utils.jsonInstance
@@ -141,7 +142,7 @@ abstract class Hitomi : KeiSource() {
             .substringAfterLast("-")
             .substringBefore(".")
 
-        val gallery = client.get("$ltnUrl/galleries/$id.js").parseScriptAs<Gallery>()
+        val gallery = client.get("$ltnUrl/galleries/$id.js", Fetch.SCRIPT).parseScriptAs<Gallery>()
 
         return SMangaUpdate(
             manga = gallery.toSManga(),

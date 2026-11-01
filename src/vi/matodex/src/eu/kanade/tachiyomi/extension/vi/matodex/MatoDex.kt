@@ -7,6 +7,7 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import keiyoushi.annotation.Source
+import keiyoushi.network.Fetch
 import keiyoushi.network.get
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
@@ -33,7 +34,7 @@ abstract class MatoDex : KeiSource() {
     // ============================== Popular ===============================
 
     override suspend fun getPopularManga(page: Int): MangasPage {
-        client.get("$apiUrl/info.json", headers).use { response ->
+        client.get("$apiUrl/info.json", Fetch.XHR).use { response ->
             val info = response.parseAs<MatoInfoDto>()
             return MangasPage(listOf(info.toSManga()), false)
         }
@@ -55,7 +56,7 @@ abstract class MatoDex : KeiSource() {
 
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
         if (url.host == baseUrl.toHttpUrl().host) {
-            client.get("$apiUrl/info.json", headers).use { response ->
+            client.get("$apiUrl/info.json", Fetch.XHR).use { response ->
                 return response.parseAs<MatoInfoDto>().toSManga()
             }
         }
@@ -70,11 +71,11 @@ abstract class MatoDex : KeiSource() {
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        val details = client.get("$apiUrl/info.json", headers).use { response ->
+        val details = client.get("$apiUrl/info.json", Fetch.XHR).use { response ->
             response.parseAs<MatoInfoDto>().toSManga()
         }
 
-        val chaptersList = client.get("$apiUrl/chapters.json", headers).use { response ->
+        val chaptersList = client.get("$apiUrl/chapters.json", Fetch.XHR).use { response ->
             response.parseAs<List<MatoChapterDto>>()
                 .map { it.toSChapter() }
                 .sortedByDescending { it.chapter_number }
@@ -91,7 +92,7 @@ abstract class MatoDex : KeiSource() {
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
         val chapterId = chapter.url
-        client.get("$apiUrl/chapters/$chapterId.json", headers).use { response ->
+        client.get("$apiUrl/chapters/$chapterId.json", Fetch.XHR).use { response ->
             return response.parseAs<MatoChapterPayloadDto>().toPages()
         }
     }

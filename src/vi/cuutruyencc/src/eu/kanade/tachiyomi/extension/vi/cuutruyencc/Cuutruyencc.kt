@@ -12,6 +12,7 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import keiyoushi.annotation.Source
+import keiyoushi.network.Fetch
 import keiyoushi.network.get
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
@@ -47,14 +48,14 @@ abstract class Cuutruyencc : KeiSource() {
     }
 
     override suspend fun getPopularManga(page: Int): MangasPage {
-        val response = client.get("$baseUrl/api/best-mangas")
+        val response = client.get("$baseUrl/api/best-mangas", Fetch.XHR)
         val dto = response.parseAs<PopularResponseDto>()
         val mangas = dto.mangas.week.map { it.toSManga(baseUrl) }
         return MangasPage(mangas, false)
     }
 
     override suspend fun getLatestUpdates(page: Int): MangasPage {
-        val response = client.get("$baseUrl/newest?page=$page")
+        val response = client.get("$baseUrl/newest?page=$page", Fetch.DOCUMENT)
         return parseMangaPage(response, page)
     }
 
@@ -77,7 +78,7 @@ abstract class Cuutruyencc : KeiSource() {
                 }
         }.build()
 
-        val response = client.get(searchUrl)
+        val response = client.get(searchUrl, Fetch.DOCUMENT)
         return parseMangaPage(response, page)
     }
 
@@ -103,7 +104,7 @@ abstract class Cuutruyencc : KeiSource() {
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        val document = client.get(getMangaUrl(manga)).asJsoup()
+        val document = client.get(getMangaUrl(manga), Fetch.DOCUMENT).asJsoup()
         return SMangaUpdate(
             parseMangaDetails(document),
             parseChapterList(document),
@@ -157,7 +158,7 @@ abstract class Cuutruyencc : KeiSource() {
         }
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
-        val response = client.get(getChapterUrl(chapter))
+        val response = client.get(getChapterUrl(chapter), Fetch.DOCUMENT)
         val document = response.asJsoup()
         val images = document.select("img.lazy-load[data-src], img.zen-img[data-src]")
         return images.mapIndexed { i, img ->

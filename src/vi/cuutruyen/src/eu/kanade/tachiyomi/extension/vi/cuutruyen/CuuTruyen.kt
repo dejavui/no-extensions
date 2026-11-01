@@ -11,6 +11,7 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import keiyoushi.annotation.Source
+import keiyoushi.network.Fetch
 import keiyoushi.network.get
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
@@ -62,7 +63,7 @@ abstract class CuuTruyen :
             addQueryParameter("per_page", "24")
         }.build()
 
-        client.get(url, CacheControl.FORCE_NETWORK).use { response ->
+        client.get(url, Fetch.NONE, CacheControl.FORCE_NETWORK).use { response ->
             val responseDto = response.parseAs<ResponseDto<List<MangaDto>>>()
             return parseMangaList(responseDto.data, responseDto.metadata)
         }
@@ -77,7 +78,7 @@ abstract class CuuTruyen :
             addQueryParameter("per_page", "30")
         }.build()
 
-        client.get(url, CacheControl.FORCE_NETWORK).use { response ->
+        client.get(url, Fetch.NONE, CacheControl.FORCE_NETWORK).use { response ->
             val responseDto = response.parseAs<ResponseDto<List<MangaDto>>>()
             return parseMangaList(responseDto.data, responseDto.metadata)
         }
@@ -126,7 +127,7 @@ abstract class CuuTruyen :
             addQueryParameter("per_page", "24")
         }.build()
 
-        client.get(url, CacheControl.FORCE_NETWORK).use { response ->
+        client.get(url, Fetch.NONE, CacheControl.FORCE_NETWORK).use { response ->
             val path = response.request.url.encodedPath
             if (path.endsWith("mangas/search") || path.endsWith("mangas/top")) {
                 val responseDto = response.parseAs<ResponseDto<List<MangaDto>>>()
@@ -159,7 +160,7 @@ abstract class CuuTruyen :
             url.pathSegments[0] == "mangas"
         ) {
             val mangaId = url.pathSegments[1]
-            client.get("$apiUrl/mangas/$mangaId").use { response ->
+            client.get("$apiUrl/mangas/$mangaId", Fetch.NONE).use { response ->
                 return response.parseAs<ResponseDto<MangaDto>>()
                     .data
                     .toSManga(preferences.useMobileCover)
@@ -185,7 +186,7 @@ abstract class CuuTruyen :
 
         val details = async {
             if (fetchDetails) {
-                client.get("$apiUrl/mangas/$mangaId").use { response ->
+                client.get("$apiUrl/mangas/$mangaId", Fetch.NONE).use { response ->
                     response.parseAs<ResponseDto<MangaDto>>()
                         .data.toSManga(useMobileCover)
                 }
@@ -196,7 +197,7 @@ abstract class CuuTruyen :
 
         val chaptersList = async {
             if (fetchChapters) {
-                client.get("$apiUrl/mangas/$mangaId/chapters", CacheControl.FORCE_NETWORK).use { response ->
+                client.get("$apiUrl/mangas/$mangaId/chapters", Fetch.NONE, CacheControl.FORCE_NETWORK).use { response ->
                     response.parseAs<ResponseDto<List<ChapterDto>>>()
                         .data.map { it.toSChapter(mangaId) }
                 }
@@ -216,7 +217,7 @@ abstract class CuuTruyen :
             addPathSegment(chapter.url.substringAfterLast('/'))
         }.build()
 
-        client.get(url, CacheControl.FORCE_NETWORK).use { response ->
+        client.get(url, Fetch.NONE, CacheControl.FORCE_NETWORK).use { response ->
             return response.parseAs<ResponseDto<ChapterDto>>().data.pages!!
                 .map { it.toPage() }
         }

@@ -7,6 +7,7 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import keiyoushi.annotation.Source
+import keiyoushi.network.Fetch
 import keiyoushi.network.get
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
@@ -38,13 +39,13 @@ abstract class TheGioiTruyen : KeiSource() {
 
     override suspend fun getPopularManga(page: Int): MangasPage {
         val pagePart = if (page > 1) "page/$page/" else ""
-        val response = client.get("$baseUrl/truyen/$pagePart")
+        val response = client.get("$baseUrl/truyen/$pagePart", Fetch.DOCUMENT)
         return parseMangaList(response.asJsoup())
     }
 
     override suspend fun getLatestUpdates(page: Int): MangasPage {
         val pagePart = if (page > 1) "page/$page/" else ""
-        val response = client.get("$baseUrl/truyen/$pagePart")
+        val response = client.get("$baseUrl/truyen/$pagePart", Fetch.DOCUMENT)
         return parseMangaList(response.asJsoup())
     }
 
@@ -56,7 +57,7 @@ abstract class TheGioiTruyen : KeiSource() {
                 .addQueryParameter("post_type", "truyen")
                 .addQueryParameter("s", query)
                 .build()
-            val response = client.get(url)
+            val response = client.get(url, Fetch.DOCUMENT)
             return parseMangaList(response.asJsoup())
         }
 
@@ -64,7 +65,7 @@ abstract class TheGioiTruyen : KeiSource() {
         if (genreFilter != null && genreFilter.state != 0) {
             val genreSlug = genreFilter.values[genreFilter.state].value
             val url = "$baseUrl/the-loai/$genreSlug/$pagePart"
-            val response = client.get(url)
+            val response = client.get(url, Fetch.DOCUMENT)
             return parseMangaList(response.asJsoup())
         }
 
@@ -97,7 +98,7 @@ abstract class TheGioiTruyen : KeiSource() {
     override val supportsFilterFetching: Boolean get() = true
 
     override suspend fun fetchFilterData(): JsonElement {
-        val response = client.get("$baseUrl/the-loai/")
+        val response = client.get("$baseUrl/the-loai/", Fetch.DOCUMENT)
         val document = response.asJsoup()
         val genres = document.select("a.tgt-genre-card").mapNotNull { element ->
             val name = element.selectFirst(".tgt-genre-name")?.text()?.trim() ?: return@mapNotNull null
@@ -121,7 +122,7 @@ abstract class TheGioiTruyen : KeiSource() {
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        val response = client.get(getMangaUrl(manga))
+        val response = client.get(getMangaUrl(manga), Fetch.DOCUMENT)
         val document = response.asJsoup()
 
         return SMangaUpdate(
@@ -165,7 +166,7 @@ abstract class TheGioiTruyen : KeiSource() {
     private fun parseDate(date: String): Long = dateFormat.tryParseDate(date)
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
-        val response = client.get(getChapterUrl(chapter))
+        val response = client.get(getChapterUrl(chapter), Fetch.DOCUMENT)
         val document = response.asJsoup()
 
         return document.select(".tgt-reader-pages img.tgt-reader-page").mapIndexed { index, element ->

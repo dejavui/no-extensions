@@ -16,6 +16,7 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import keiyoushi.annotation.Source
+import keiyoushi.network.Fetch
 import keiyoushi.network.get
 import keiyoushi.source.KeiSource
 import keiyoushi.utils.asJsoup
@@ -89,7 +90,7 @@ abstract class EHentai :
             val viewerUrl = request.url.fragment!!
             val result = runCatching {
                 runBlocking {
-                    val response = client.get(viewerUrl)
+                    val response = client.get(viewerUrl, Fetch.DOCUMENT)
                     Parser.parseImageUrl(response, getOriginalImagePref())
                 }
             }
@@ -150,7 +151,7 @@ abstract class EHentai :
     override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
         if (query.startsWith(PREFIX_ID_SEARCH)) {
             val id = query.removePrefix(PREFIX_ID_SEARCH)
-            val response = client.get("$baseUrl/g/$id")
+            val response = client.get("$baseUrl/g/$id", Fetch.DOCUMENT)
             val details = Parser.parseDetails(response).apply {
                 url = "/g/$id/"
             }
@@ -208,7 +209,7 @@ abstract class EHentai :
 
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
         if ((url.host == "e-hentai.org" || url.host == "exhentai.org") && url.pathSegments.getOrNull(0) == "g") {
-            val response = client.get(url)
+            val response = client.get(url, Fetch.DOCUMENT)
             return Parser.parseDetails(response)
         }
         return null
@@ -222,7 +223,7 @@ abstract class EHentai :
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        val response = client.get(getMangaUrl(manga))
+        val response = client.get(getMangaUrl(manga), Fetch.DOCUMENT)
 
         return SMangaUpdate(
             manga = Parser.parseDetails(response),
@@ -243,7 +244,7 @@ abstract class EHentai :
         var nextUrl: String? = getChapterUrl(chapter)
 
         while (nextUrl != null) {
-            val doc = client.get(nextUrl).asJsoup()
+            val doc = client.get(nextUrl, Fetch.DOCUMENT).asJsoup()
             pages += Parser.parseChapterPage(doc)
             nextUrl = Parser.nextPageUrl(doc)
         }

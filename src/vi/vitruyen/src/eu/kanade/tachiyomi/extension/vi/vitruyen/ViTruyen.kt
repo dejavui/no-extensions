@@ -8,6 +8,7 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import keiyoushi.annotation.Source
+import keiyoushi.network.Fetch
 import keiyoushi.network.get
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
@@ -76,7 +77,7 @@ abstract class ViTruyen : KeiSource() {
         }.build()
 
         val headers = headers.newBuilder().set("Accept", "application/json").build()
-        client.get(url, headers).use { response ->
+        client.get(url, headers, Fetch.NONE).use { response ->
             return parseMangaPage(response)
         }
     }
@@ -114,7 +115,7 @@ abstract class ViTruyen : KeiSource() {
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        val document = client.get(getMangaUrl(manga)).asJsoup()
+        val document = client.get(getMangaUrl(manga), Fetch.DOCUMENT).asJsoup()
         return SMangaUpdate(parseMangaDetails(document), parseChapterList(document))
     }
 
@@ -169,7 +170,7 @@ abstract class ViTruyen : KeiSource() {
     // =============================== Pages ================================
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
-        client.get(getChapterUrl(chapter)).use { response ->
+        client.get(getChapterUrl(chapter), Fetch.DOCUMENT).use { response ->
             val document = response.asJsoup()
 
             document.selectFirst(".v2-reader-lock-panel")?.let {
@@ -188,7 +189,7 @@ abstract class ViTruyen : KeiSource() {
 
     override val supportsFilterFetching get() = true
 
-    override suspend fun fetchFilterData(): JsonElement = client.get("$apiUrl/api/next/categories").use {
+    override suspend fun fetchFilterData(): JsonElement = client.get("$apiUrl/api/next/categories", Fetch.NONE).use {
         it.parseAs<JsonElement>()
     }
 

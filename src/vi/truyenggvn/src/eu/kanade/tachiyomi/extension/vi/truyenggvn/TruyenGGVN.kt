@@ -8,6 +8,7 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import keiyoushi.annotation.Source
+import keiyoushi.network.Fetch
 import keiyoushi.network.get
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
@@ -70,7 +71,7 @@ abstract class TruyenGGVN : KeiSource() {
     override suspend fun getPopularManga(page: Int): MangasPage {
         val url = "$baseUrl/truyen-yeu-thich" + if (page > 1) "/trang-$page.html" else ""
 
-        return mangaFromElement(client.get(url).asJsoup())
+        return mangaFromElement(client.get(url, Fetch.DOCUMENT).asJsoup())
     }
 
     // =============================== Latest ===============================
@@ -78,7 +79,7 @@ abstract class TruyenGGVN : KeiSource() {
     override suspend fun getLatestUpdates(page: Int): MangasPage {
         val url = "$baseUrl/truyen-moi-cap-nhat" + if (page > 1) "/trang-$page.html" else ""
 
-        return mangaFromElement(client.get(url).asJsoup())
+        return mangaFromElement(client.get(url, Fetch.DOCUMENT).asJsoup())
     }
 
     // =============================== Search ===============================
@@ -115,7 +116,7 @@ abstract class TruyenGGVN : KeiSource() {
             }
         }.build()
 
-        return mangaFromElement(client.get(url, headers).asJsoup())
+        return mangaFromElement(client.get(url, Fetch.DOCUMENT).asJsoup())
     }
 
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
@@ -127,7 +128,7 @@ abstract class TruyenGGVN : KeiSource() {
         val mangaSlug = segments[1].substringBefore("-chap-")
         val mangaPath = "/truyen-tranh/$mangaSlug"
 
-        val document = client.get("$baseUrl$mangaPath").asJsoup()
+        val document = client.get("$baseUrl$mangaPath", Fetch.DOCUMENT).asJsoup()
         return parseMangaDetails(document).apply {
             setUrlWithoutDomain(mangaPath)
         }
@@ -141,7 +142,7 @@ abstract class TruyenGGVN : KeiSource() {
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        client.get(getMangaUrl(manga)).use { response ->
+        client.get(getMangaUrl(manga), Fetch.DOCUMENT).use { response ->
             val document = response.asJsoup()
             return SMangaUpdate(parseMangaDetails(document), parseChapterList(document))
         }
@@ -171,7 +172,7 @@ abstract class TruyenGGVN : KeiSource() {
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
         val cacheControl = CacheControl.FORCE_NETWORK
-        client.get(getChapterUrl(chapter), cacheControl).use { response ->
+        client.get(getChapterUrl(chapter), Fetch.DOCUMENT, cacheControl).use { response ->
             val document = response.asJsoup()
             return document.select(".page-chapter img").mapIndexed { index, element ->
                 Page(

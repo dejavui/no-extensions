@@ -6,6 +6,7 @@ import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import keiyoushi.annotation.Source
+import keiyoushi.network.Fetch
 import keiyoushi.network.get
 import keiyoushi.network.post
 import keiyoushi.network.rateLimit
@@ -36,12 +37,12 @@ abstract class NetTruyen0209 : WPComics() {
 
     override suspend fun getPopularManga(page: Int): MangasPage {
         val url = "$baseUrl/$popularPath/$page/?sort=views&status=0"
-        return parseMangaPage(client.get(url), popularMangaSelector(), ::popularMangaFromElement)
+        return parseMangaPage(client.get(url, Fetch.DOCUMENT), popularMangaSelector(), ::popularMangaFromElement)
     }
 
     override suspend fun getLatestUpdates(page: Int): MangasPage {
         val url = "$baseUrl/$popularPath/$page/?sort=latest-updated&status=0"
-        return parseMangaPage(client.get(url), latestUpdatesSelector(), ::latestUpdatesFromElement)
+        return parseMangaPage(client.get(url, Fetch.DOCUMENT), latestUpdatesSelector(), ::latestUpdatesFromElement)
     }
 
     override fun popularMangaNextPageSelector(): String = "a[title=Last Page]"
@@ -49,7 +50,7 @@ abstract class NetTruyen0209 : WPComics() {
     // ============================== Pages =================================
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
-        val response = client.get(getChapterUrl(chapter))
+        val response = client.get(getChapterUrl(chapter), Fetch.DOCUMENT)
         val pages = parsePageList(response)
         if (pages.isNotEmpty()) {
             return pages
@@ -64,7 +65,7 @@ abstract class NetTruyen0209 : WPComics() {
             .add("Referer", response.request.url.toString())
             .build()
 
-        val ajaxResponse = client.post("$baseUrl/ajax/image/list/chap/$chapterId?cache=0", ajaxHeaders, "".toRequestBody())
+        val ajaxResponse = client.post("$baseUrl/ajax/image/list/chap/$chapterId?cache=0", ajaxHeaders, Fetch.XHR, "".toRequestBody())
         return parsePageList(ajaxResponse)
     }
 
@@ -113,7 +114,7 @@ abstract class NetTruyen0209 : WPComics() {
             }
         }.build()
 
-        return parseMangaPage(client.get(url), searchMangaSelector(), ::searchMangaFromElement)
+        return parseMangaPage(client.get(url, Fetch.DOCUMENT), searchMangaSelector(), ::searchMangaFromElement)
     }
 
     companion object {

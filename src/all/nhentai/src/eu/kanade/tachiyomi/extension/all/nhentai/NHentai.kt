@@ -21,6 +21,7 @@ import eu.kanade.tachiyomi.source.model.UpdateStrategy
 import keiyoushi.annotation.Source
 import keiyoushi.lib.randomua.addRandomUAPreference
 import keiyoushi.lib.randomua.setRandomUserAgent
+import keiyoushi.network.Fetch
 import keiyoushi.network.get
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
@@ -139,7 +140,7 @@ abstract class NHentai :
             .addQueryParameter("sort", "popular")
             .addQueryParameter("page", page.toString())
             .build()
-        return parseSearchPage(client.get(url))
+        return parseSearchPage(client.get(url, Fetch.XHR))
     }
 
     // Latest
@@ -153,7 +154,7 @@ abstract class NHentai :
                 .addQueryParameter("query", "language:$nhLang")
         }
         url.addQueryParameter("page", page.toString())
-        return parseSearchPage(client.get(url.build()))
+        return parseSearchPage(client.get(url.build(), Fetch.XHR))
     }
 
     // Search
@@ -161,7 +162,7 @@ abstract class NHentai :
     override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
         val id = query.removePrefix(PREFIX_ID_SEARCH).toIntOrNull() ?: query.toIntOrNull()
         if (id != null) {
-            val data = client.get("$apiUrl/galleries/$id").parseAs<Hentai>(jsonInstance)
+            val data = client.get("$apiUrl/galleries/$id", Fetch.XHR).parseAs<Hentai>(jsonInstance)
             val details = parseDetails(data)
             return MangasPage(listOf(details), false)
         }
@@ -186,13 +187,13 @@ abstract class NHentai :
         }
 
         url.addQueryParameter("page", offsetPage.toString())
-        return parseSearchPage(client.get(url.build()))
+        return parseSearchPage(client.get(url.build(), Fetch.XHR))
     }
 
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
         if (url.host == baseUrl.toHttpUrl().host && url.pathSegments.getOrNull(0) == "g") {
             val id = url.pathSegments.getOrNull(1) ?: return null
-            val data = client.get("$apiUrl/galleries/$id").parseAs<Hentai>(jsonInstance)
+            val data = client.get("$apiUrl/galleries/$id", Fetch.XHR).parseAs<Hentai>(jsonInstance)
             return parseDetails(data)
         }
         return null
@@ -257,6 +258,7 @@ abstract class NHentai :
         val id = manga.url.removeSurrounding("/g/", "/")
         val data = client.get(
             url = "$apiUrl/galleries/$id",
+            Fetch.XHR,
             cacheControl = CacheControl.Builder().maxStale(2, TimeUnit.HOURS).build(),
         ).parseAs<Hentai>(jsonInstance)
 
@@ -270,7 +272,7 @@ abstract class NHentai :
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
         val id = chapter.url.removeSurrounding("/g/", "/")
-        val data = client.get("$apiUrl/galleries/$id").parseAs<Hentai>(jsonInstance)
+        val data = client.get("$apiUrl/galleries/$id", Fetch.XHR).parseAs<Hentai>(jsonInstance)
         return data.pages.mapIndexed { i, page ->
             Page(i, imageUrl = "$imageServer/${page.path}")
         }

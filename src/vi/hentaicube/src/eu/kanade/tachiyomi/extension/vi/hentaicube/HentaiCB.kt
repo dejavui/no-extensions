@@ -7,6 +7,7 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import keiyoushi.annotation.Source
+import keiyoushi.network.Fetch
 import keiyoushi.network.get
 import keiyoushi.network.post
 import keiyoushi.network.rateLimit
@@ -66,7 +67,7 @@ abstract class HentaiCB : Madara() {
         .replace(oldMangaUrlRegex, "$baseUrl/$mangaSubString/")
 
     override suspend fun fetchChapters(mangaPath: String, id: String, mangaPage: Document?): List<SChapter> {
-        val document = mangaPage ?: client.get(baseUrl.toHttpUrl().newBuilder().addEncodedPathSegments(mangaPath).build()).asJsoup()
+        val document = mangaPage ?: client.get(baseUrl.toHttpUrl().newBuilder().addEncodedPathSegments(mangaPath).build(), Fetch.DOCUMENT).asJsoup()
         val chaptersWrapper = document.select("div[id^=manga-chapters-holder]")
 
         var chapters = parseChapterList(document, mangaPath)
@@ -80,7 +81,7 @@ abstract class HentaiCB : Madara() {
 
             while (true) {
                 val url = "$mangaUrl/ajax/chapters/?t=$page"
-                var response = client.post(url, xhrHeaders, FormBody.Builder().build(), ensureSuccess = false)
+                var response = client.post(url, xhrHeaders, Fetch.XHR, FormBody.Builder().build(), ensureSuccess = false)
 
                 // Newer Madara versions throws HTTP 400 when using the old endpoint.
                 if (response.code == 400 && page == 1) {
@@ -89,7 +90,7 @@ abstract class HentaiCB : Madara() {
                         .add("action", "manga_get_chapters")
                         .add("manga", mangaId)
                         .build()
-                    response = client.post("$baseUrl/wp-admin/admin-ajax.php", xhrHeaders, body)
+                    response = client.post("$baseUrl/wp-admin/admin-ajax.php", xhrHeaders, Fetch.XHR, body)
                 }
 
                 if (!response.isSuccessful) {
@@ -121,7 +122,7 @@ abstract class HentaiCB : Madara() {
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
         val chapterUrl = getChapterUrl(chapter)
-        val document = client.get(chapterUrl).asJsoup()
+        val document = client.get(chapterUrl, Fetch.DOCUMENT).asJsoup()
 
         val readerElement =
             document.selectFirst(".mcld-chapter-reactions")
@@ -134,7 +135,7 @@ abstract class HentaiCB : Madara() {
 
         if (chapterId == null || mangaId == null) {
             val listStylesDoc = if (document.selectFirst("#single-pager") != null) {
-                client.get(chapterUrl.toHttpUrl().newBuilder().build()).asJsoup()
+                client.get(chapterUrl, Fetch.DOCUMENT).asJsoup()
             } else {
                 document
             }
@@ -155,7 +156,7 @@ abstract class HentaiCB : Madara() {
             manga = mangaId,
         )
 
-        val pages = client.post(pageUrlString, headers, payload.toJsonRequestBody(), ensureSuccess = false)
+        val pages = client.post(pageUrlString, headers, Fetch.XHR, payload.toJsonRequestBody(), ensureSuccess = false)
             .parseAs<PagesResponse>()
 
         if (!pages.code.isNullOrEmpty()) {
