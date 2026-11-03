@@ -19,8 +19,6 @@ import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
 import keiyoushi.annotation.Source
-import keiyoushi.lib.randomua.addRandomUAPreference
-import keiyoushi.lib.randomua.setRandomUserAgent
 import keiyoushi.network.Fetch
 import keiyoushi.network.get
 import keiyoushi.network.rateLimit
@@ -33,7 +31,6 @@ import keiyoushi.utils.parseAs
 import kotlinx.serialization.json.JsonElement
 import okhttp3.Cache
 import okhttp3.CacheControl
-import okhttp3.Headers
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
@@ -97,11 +94,6 @@ abstract class NHentai :
                 it.host.matches(Regex("[it]\\d+\\.nhentai\\.net"))
             }
         }
-    }
-
-    override fun Headers.Builder.configureHeaders(): Headers.Builder = apply {
-        setRandomUserAgent(filterInclude = listOf("chrome"))
-        removeAll("Origin")
     }
 
     // Authentication
@@ -310,8 +302,6 @@ abstract class NHentai :
             summary = "Profile > Settings > API Keys"
             setDefaultValue("")
         }.also(screen::addPreference)
-
-        screen.addRandomUAPreference()
     }
 
     // Helpers
