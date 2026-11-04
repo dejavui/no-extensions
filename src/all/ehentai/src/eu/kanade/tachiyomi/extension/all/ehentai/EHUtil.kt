@@ -33,7 +33,7 @@ operator fun StringBuilder.plusAssign(other: String) {
     append(other)
 }
 
-val EX_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.US)
+val EX_DATE_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.US)
 
 /**
  * Converts bytes into a human-readable String
@@ -54,7 +54,7 @@ private const val GB_FACTOR = 1000 * MB_FACTOR
 private const val GIB_FACTOR = 1024 * MIB_FACTOR
 
 /**
- * Parse human readable size Strings
+ * Parse human-readable size Strings
  */
 fun parseHumanReadableByteCount(arg0: String): Double? {
     val spaceNdx = arg0.indexOf(" ")
