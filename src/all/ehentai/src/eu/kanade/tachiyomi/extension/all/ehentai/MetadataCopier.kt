@@ -2,7 +2,6 @@ package eu.kanade.tachiyomi.extension.all.ehentai
 
 import eu.kanade.tachiyomi.source.model.SManga
 import java.time.Instant
-import java.time.LocalDateTime
 import java.time.ZoneOffset
 
 private const val EH_ARTIST_NAMESPACE = "artist"
@@ -47,33 +46,32 @@ fun ExGalleryMetadata.copyTo(manga: SManga) {
     }
 
     // Build description
-    val titleDesc = StringBuilder()
-    title?.let { titleDesc += "Title: $it\n" }
-    altTitle?.let { titleDesc += "Alternate Title: $it\n" }
-
-    val detailsDesc = StringBuilder()
-    uploader?.let { detailsDesc += "Uploader: $it\n" }
-    datePosted?.let {
-        val dateStr = LocalDateTime.ofInstant(Instant.ofEpochMilli(it), ZoneOffset.UTC).format(EX_DATE_FORMATTER)
-        detailsDesc += "Posted: $dateStr\n"
-    }
-    visible?.let { detailsDesc += "Visible: $it\n" }
-    category?.let { detailsDesc += "Category: $it\n" }
-    language?.let {
-        detailsDesc += "Language: $it"
-        if (translated == true) detailsDesc += " TR"
-        detailsDesc += "\n"
-    }
-    size?.let { detailsDesc += "File Size: ${humanReadableByteCount(it, true)}\n" }
-    length?.let { detailsDesc += "Length: $it pages\n" }
-    favorites?.let { detailsDesc += "Favorited: $it times\n" }
-    averageRating?.let {
-        detailsDesc += "Rating: $it"
-        ratingCount?.let { count -> detailsDesc += " ($count)" }
-        detailsDesc += "\n"
+    val titleDesc = buildString {
+        title?.let { append("Title: $it\n") }
+        altTitle?.let { append("Alternate Title: $it\n") }
     }
 
-    manga.description = listOf(titleDesc.toString(), detailsDesc.toString())
+    val detailsDesc = buildString {
+        uploader?.let { append("Uploader: $it\n") }
+        datePosted?.let { append("Posted: ${EX_DATE_FORMATTER.withZone(ZoneOffset.UTC).format(Instant.ofEpochMilli(it))}\n") }
+        visible?.let { append("Visible: $it\n") }
+        category?.let { append("Category: $it\n") }
+        language?.let {
+            append("Language: $it")
+            if (translated == true) append(" TR")
+            append("\n")
+        }
+        size?.let { append("File Size: ${humanReadableByteCount(it, true)}\n") }
+        this@copyTo.length?.let { append("Length: $it pages\n") }
+        favorites?.let { append("Favorited: $it times\n") }
+        averageRating?.let {
+            append("Rating: $it")
+            ratingCount?.let { count -> append(" ($count)") }
+            append("\n")
+        }
+    }
+
+    manga.description = listOf(titleDesc, detailsDesc)
         .filter(String::isNotBlank)
         .joinToString(separator = "\n")
 }

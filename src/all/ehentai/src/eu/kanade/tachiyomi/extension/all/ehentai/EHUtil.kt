@@ -20,17 +20,10 @@ fun String?.nullIfBlank(): String? = if (isNullOrBlank()) {
 /**
  * Ignores any exceptions thrown inside a block
  */
-fun <T> ignore(expr: () -> T): T? = try {
-    expr()
-} catch (t: Throwable) {
+inline fun <T> ignore(block: () -> T): T? = try {
+    block()
+} catch (_: Exception) {
     null
-}
-
-/**
- * Use '+' to append Strings onto a StringBuilder
- */
-operator fun StringBuilder.plusAssign(other: String) {
-    append(other)
 }
 
 val EX_DATE_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.US)
@@ -58,7 +51,8 @@ private const val GIB_FACTOR = 1024 * MIB_FACTOR
  */
 fun parseHumanReadableByteCount(arg0: String): Double? {
     val spaceNdx = arg0.indexOf(" ")
-    val ret = arg0.substring(0 until spaceNdx).toDouble()
+    if (spaceNdx == -1) return null
+    val ret = arg0.substring(0 until spaceNdx).toDoubleOrNull() ?: return null
     when (arg0.substring(spaceNdx + 1)) {
         "GB" -> return ret * GB_FACTOR
         "GiB" -> return ret * GIB_FACTOR

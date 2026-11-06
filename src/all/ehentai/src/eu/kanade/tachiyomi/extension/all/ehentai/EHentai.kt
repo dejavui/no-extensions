@@ -17,18 +17,20 @@ import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import keiyoushi.annotation.Source
 import keiyoushi.network.Fetch
+import keiyoushi.network.addCookie
 import keiyoushi.network.get
+import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
 import keiyoushi.utils.asJsoup
 import keiyoushi.utils.getPreferences
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonElement
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import java.net.URLEncoder
 
 @Source
@@ -77,48 +79,26 @@ abstract class EHentai :
     // true if lang is a "natural human language"
     private fun isLangNatural(): Boolean = lang != "all"
 
-    // Initializers
-
     override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = apply {
         cookieJar(CookieJar.NO_COOKIES)
+        addCookie({ "e-hentai.org" }) { cookiesList }
+        addCookie({ "exhentai.org" }) { cookiesList }
         addInterceptor { chain ->
             val request = chain.request()
-            if (request.url.host != IMAGE_LOOPBACK_HOST) {
+            val host = request.url.host
+            if (host != "e-hentai.org" && host != "exhentai.org" && host != "forums.e-hentai.org") {
                 return@addInterceptor chain.proceed(request)
             }
 
-            val viewerUrl = request.url.fragment!!
-            val result = runCatching {
-                runBlocking {
-                    val response = client.get(viewerUrl, Fetch.DOCUMENT)
-                    Parser.parseImageUrl(response, getOriginalImagePref())
-                }
-            }
-
-            val imageUrl = result.getOrNull()
-            if (imageUrl == null || result.isFailure) {
-                return@addInterceptor chain.proceed(request)
-            }
-
-            val newRequest = request.newBuilder()
-                .url(imageUrl)
-                .removeHeader("Cookie")
-                .build()
-
-            chain.proceed(newRequest)
-        }
-        addInterceptor { chain ->
-            val request = chain.request()
             val currentBaseUrl = baseUrl
             val newReq = request.newBuilder()
-                .removeHeader("Cookie")
-                .addHeader("Cookie", cookiesHeader)
                 .header("Referer", "$currentBaseUrl/")
                 .header("Origin", currentBaseUrl)
                 .build()
 
             chain.proceed(newReq)
         }
+        rateLimit(2)
     }
 
     // Popular
@@ -192,6 +172,15 @@ abstract class EHentai :
             }
         }
 
+        val favorites = filters.filterIsInstance<Favorites>().firstOrNull()?.state == true
+        val watched = filters.filterIsInstance<Watched>().firstOrNull()?.state == true
+
+        if (favorites) {
+            uri.appendPath("favorites.php")
+        } else if (watched) {
+            uri.appendPath("watched")
+        }
+
         filters.forEach {
             if (it is UriFilter) it.addToUri(uri)
         }
@@ -241,40 +230,54 @@ abstract class EHentai :
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
         val pages = mutableListOf<String>()
-        var nextUrl: String? = getChapterUrl(chapter)
+        var nextUrl: String? = cleanUrl(getChapterUrl(chapter))
 
         while (nextUrl != null) {
             val doc = client.get(nextUrl, Fetch.DOCUMENT).asJsoup()
             pages += Parser.parseChapterPage(doc)
-            nextUrl = Parser.nextPageUrl(doc)
+            nextUrl = Parser.nextPageUrl(doc)?.let { cleanUrl(it) }
         }
 
         return pages.mapIndexed { i, url ->
-            val fakeUrl = "https://$IMAGE_LOOPBACK_HOST/#$url"
-            Page(i, "", fakeUrl)
+            Page(i, url = cleanUrl(url))
         }
     }
 
-    override fun getImageRequest(page: Page): Request = Request.Builder()
-        .url(page.imageUrl!!)
-        .header("Referer", page.url)
-        .header("Accept", "image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
-        .build()
+    override suspend fun getImageUrl(page: Page): String {
+        val targetUrl = if (page.url.isNotEmpty()) cleanUrl(page.url) else cleanUrl(page.imageUrl.orEmpty())
+        val response = client.get(targetUrl, Fetch.DOCUMENT)
+        return imageUrlParse(response)
+    }
+
+    private fun imageUrlParse(response: Response): String = Parser.parseImageUrl(response, getOriginalImagePref())
+
+    override fun getImageRequest(page: Page): Request {
+        val imageUrl = cleanUrl(page.imageUrl.orEmpty())
+        val referer = if (page.url.isNotEmpty()) cleanUrl(page.url) else imageUrl
+        return Request.Builder()
+            .url(imageUrl)
+            .header("Referer", referer)
+            .header("Accept", "image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+            .build()
+    }
+
+    private fun cleanUrl(url: String): String = url.replace(Regex("^https?://127\\.0\\.0\\.1/#"), "")
 
     // Helpers
 
     private fun exGetRequest(url: String, page: Int): Request {
-        val pageIndex = if (page == 1) null else page
-        val finalUrl = pageIndex?.let {
-            Uri.parse(url).buildUpon().appendQueryParameter("next", lastMangaId).toString()
-        } ?: url
+        val uri = Uri.parse(url).buildUpon()
+        if (page > 1) {
+            uri.appendQueryParameter("next", lastMangaId)
+        }
+        uri.appendQueryParameter("inline_set", "dm_l")
 
-        return Request.Builder().url(finalUrl).headers(headers).build()
+        return Request.Builder().url(uri.toString()).headers(headers).build()
     }
 
     private fun languageTag(enforceLanguageFilter: Boolean = false): String = if (lang != "all" && (enforceLanguageFilter || getEnforceLanguagePref())) "language:$ehLang" else ""
 
-    private val cookiesHeader get() = buildMap {
+    private val cookiesList get() = buildList {
         val settings = mutableListOf("prn_n")
         if (lang != "all") {
             settings += "xl_" + languageMappings.filter { it.first != ehLang }
@@ -282,13 +285,12 @@ abstract class EHentai :
                 .joinToString("x")
         }
 
-        put("uconfig", settings.joinToString("-"))
-        put("nw", "1")
-        put("ipb_member_id", memberId)
-        put("ipb_pass_hash", passHash)
-        put("igneous", igneous)
-    }.entries.joinToString(separator = "; ", postfix = ";") {
-        "${URLEncoder.encode(it.key, "UTF-8")}=${URLEncoder.encode(it.value, "UTF-8")}"
+        add("uconfig" to settings.joinToString("-"))
+        add("inline_set" to "dm_l")
+        add("nw" to "1")
+        if (memberId.isNotBlank()) add("ipb_member_id" to memberId)
+        if (passHash.isNotBlank()) add("ipb_pass_hash" to passHash)
+        if (igneous.isNotBlank()) add("igneous" to igneous)
     }
 
     // Filters
@@ -389,13 +391,13 @@ abstract class EHentai :
             val cookieArray = cookies.split("; ")
             for (cookie in cookieArray) {
                 if (cookie.startsWith("$cookieTitle=")) {
-                    value = cookie.split("=")[1]
+                    value = cookie.substringAfter("=", "").trim().nullIfBlank()
                     break
                 }
             }
         }
 
-        return value ?: (preferences.getString(prefKey, defaultValue) ?: defaultValue)
+        return value ?: (preferences.getString(prefKey, defaultValue)?.trim()?.nullIfBlank() ?: defaultValue)
     }
 
     private fun getPassHashPref() = getCookieValue(PASS_HASH_PREF_TITLE, PASS_HASH_PREF_DEFAULT_VALUE, PASS_HASH_PREF_KEY)
@@ -405,7 +407,6 @@ abstract class EHentai :
     companion object {
         const val QUERY_PREFIX = "?f_apply=Apply+Filter"
         const val PREFIX_ID_SEARCH = "id:"
-        const val IMAGE_LOOPBACK_HOST = "127.0.0.1"
 
         private const val ENFORCE_LANGUAGE_PREF_KEY = "ENFORCE_LANGUAGE"
         private const val ENFORCE_LANGUAGE_PREF_TITLE = "Enforce Language"
