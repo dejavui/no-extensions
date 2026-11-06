@@ -26,7 +26,6 @@ import keiyoushi.source.KeiSource
 import keiyoushi.utils.applicationContext
 import keiyoushi.utils.firstInstanceOrNull
 import keiyoushi.utils.getPreferences
-import keiyoushi.utils.jsonInstance
 import keiyoushi.utils.parseAs
 import kotlinx.serialization.json.JsonElement
 import okhttp3.Cache
@@ -35,7 +34,6 @@ import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
-import okhttp3.Request
 import okhttp3.Response
 import java.io.File
 import java.io.IOException
@@ -57,6 +55,8 @@ abstract class NHentai :
     }
 
     private val apiUrl = "$baseUrl/api/v2"
+
+    private var nhConfig: NHConfig? = null
 
     private val preferences: SharedPreferences = getPreferences()
 
@@ -108,21 +108,14 @@ abstract class NHentai :
 
     // CDNs / Config
 
-    private val nhConfig: NHConfig by lazy {
-        runCatching {
-            val request = Request.Builder().url("$apiUrl/config").headers(headers).build()
-            client.newCall(request).execute().parseAs<NHConfig>(jsonInstance)
-        }.getOrDefault(
-            NHConfig(
-                imageServers = (1..4).map { "https://i$it.nhentai.net" },
-                thumbServers = (1..4).map { "https://t$it.nhentai.net" },
-            ),
-        )
-    }
-
-    private val imageServer get() = nhConfig.imageServers.random()
-
-    private val thumbServer get() = nhConfig.thumbServers.random()
+    private suspend fun getConfig(): NHConfig = nhConfig ?: runCatching {
+        client.get("$apiUrl/config", Fetch.XHR).parseAs<NHConfig>()
+    }.getOrDefault(
+        NHConfig(
+            imageServers = (1..4).map { "https://i$it.nhentai.net" },
+            thumbServers = (1..4).map { "https://t$it.nhentai.net" },
+        ),
+    ).also { nhConfig = it }
 
     // Popular
 
@@ -154,8 +147,8 @@ abstract class NHentai :
     override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
         val id = query.removePrefix(PREFIX_ID_SEARCH).toIntOrNull() ?: query.toIntOrNull()
         if (id != null) {
-            val data = client.get("$apiUrl/galleries/$id", Fetch.XHR).parseAs<Hentai>(jsonInstance)
-            val details = parseDetails(data)
+            val data = client.get("$apiUrl/galleries/$id", Fetch.XHR).parseAs<Hentai>()
+            val details = parseDetails(data, getConfig())
             return MangasPage(listOf(details), false)
         }
 
@@ -185,15 +178,16 @@ abstract class NHentai :
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
         if (url.host == baseUrl.toHttpUrl().host && url.pathSegments.getOrNull(0) == "g") {
             val id = url.pathSegments.getOrNull(1) ?: return null
-            val data = client.get("$apiUrl/galleries/$id", Fetch.XHR).parseAs<Hentai>(jsonInstance)
-            return parseDetails(data)
+            val data = client.get("$apiUrl/galleries/$id", Fetch.XHR).parseAs<Hentai>()
+            return parseDetails(data, getConfig())
         }
         return null
     }
 
-    private fun parseSearchPage(response: Response): MangasPage {
-        val res = response.parseAs<PaginatedResponse<GalleryItem>>(jsonInstance)
-        val mangas = res.result.mapNotNull { runCatching { parseSearchData(it) }.getOrNull() }
+    private suspend fun parseSearchPage(response: Response): MangasPage {
+        val res = response.parseAs<PaginatedResponse<GalleryItem>>()
+        val config = getConfig()
+        val mangas = res.result.mapNotNull { runCatching { parseSearchData(it, config) }.getOrNull() }
         val page = response.request.url.queryParameter("page")?.toIntOrNull() ?: 1
         val hasNextPage = res.numPages?.let { it > page }
             ?: res.total?.let { it > page * res.perPage }
@@ -201,28 +195,26 @@ abstract class NHentai :
         return MangasPage(mangas, hasNextPage)
     }
 
-    private fun parseSearchData(data: GalleryItem): SManga = SManga.create().apply {
+    private fun parseSearchData(data: GalleryItem, config: NHConfig): SManga = SManga.create().apply {
         url = "/g/${data.id}/"
         title = (data.englishTitle ?: data.japaneseTitle)!!.let {
             if (displayFullTitle) it else it.shortenTitle()
         }
-        thumbnail_url = "$thumbServer/${data.thumbnail}"
+        thumbnail_url = "${config.thumbServers.random()}/${data.thumbnail}"
         status = SManga.COMPLETED
         update_strategy = UpdateStrategy.ONLY_FETCH_ONCE
     }
 
     // Manga Details
 
-    override fun getMangaUrl(manga: SManga) = "$baseUrl${manga.url}"
-
-    private fun parseDetails(data: Hentai): SManga = SManga.create().apply {
+    private fun parseDetails(data: Hentai, config: NHConfig): SManga = SManga.create().apply {
         url = "/g/${data.id}/"
         title = if (displayFullTitle) {
             data.title.english ?: data.title.japanese ?: data.title.pretty!!
         } else {
             data.title.pretty ?: (data.title.english ?: data.title.japanese)!!.shortenTitle()
         }
-        thumbnail_url = "$thumbServer/${data.thumbnail.path}"
+        thumbnail_url = "${config.thumbServers.random()}/${data.thumbnail.path}"
         status = SManga.COMPLETED
         artist = getArtists(data)
         author = getGroups(data) ?: getArtists(data)
@@ -252,10 +244,10 @@ abstract class NHentai :
             url = "$apiUrl/galleries/$id",
             Fetch.XHR,
             cacheControl = CacheControl.Builder().maxStale(2, TimeUnit.HOURS).build(),
-        ).parseAs<Hentai>(jsonInstance)
+        ).parseAs<Hentai>()
 
         return SMangaUpdate(
-            manga = parseDetails(data),
+            manga = parseDetails(data, getConfig()),
             chapters = listOf(data.toSChapter()),
         )
     }
@@ -264,9 +256,10 @@ abstract class NHentai :
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
         val id = chapter.url.removeSurrounding("/g/", "/")
-        val data = client.get("$apiUrl/galleries/$id", Fetch.XHR).parseAs<Hentai>(jsonInstance)
+        val data = client.get("$apiUrl/galleries/$id", Fetch.XHR).parseAs<Hentai>()
+        val config = getConfig()
         return data.pages.mapIndexed { i, page ->
-            Page(i, imageUrl = "$imageServer/${page.path}")
+            Page(i, imageUrl = "${config.imageServers.random()}/${page.path}")
         }
     }
 
@@ -326,20 +319,6 @@ abstract class NHentai :
     }.trim()
 
     // Interceptors
-
-//    private class NhGalleryCacheInterceptor : Interceptor {
-//        override fun intercept(chain: Interceptor.Chain): Response {
-//            val response = chain.proceed(chain.request())
-//            if (!GALLERY_PATH_REGEX.matches(response.request.url.encodedPath)) return response
-//
-//            return response.newBuilder()
-//                .removeHeader("Cache-Control")
-//                .removeHeader("Expires")
-//                .removeHeader("Pragma")
-//                .header("Cache-Control", "max-age=$GALLERY_CACHE_MAX_AGE_SECONDS")
-//                .build()
-//        }
-//    }
 
     private class NhApiRetryInterceptor : Interceptor {
         override fun intercept(chain: Interceptor.Chain): Response {
