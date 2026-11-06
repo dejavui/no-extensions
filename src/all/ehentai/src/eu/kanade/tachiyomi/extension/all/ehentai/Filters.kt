@@ -4,25 +4,9 @@ import android.net.Uri
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.Filter.CheckBox
 
-class Watched :
-    CheckBox("Watched List"),
-    UriFilter {
-    override fun addToUri(builder: Uri.Builder) {
-        if (state) {
-            builder.appendPath("watched")
-        }
-    }
-}
+class Watched : CheckBox("Watched List")
 
-class Favorites :
-    CheckBox("Favorites"),
-    UriFilter {
-    override fun addToUri(builder: Uri.Builder) {
-        if (state) {
-            builder.appendPath("favorites.php")
-        }
-    }
-}
+class Favorites : CheckBox("Favorites")
 
 class GenreOption(name: String, private val genreId: String) :
     CheckBox(name, false),

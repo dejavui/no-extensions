@@ -49,13 +49,19 @@ object Parser {
 
     fun parseDetails(response: Response): SManga = with(response.asJsoup()) {
         val metadata = ExGalleryMetadata().apply {
-            url = response.request.url.encodedPath
+            val galleryPath = response.request.url.encodedPath
+            url = if (ExGalleryMetadata.hasToken(galleryPath)) {
+                ExGalleryMetadata.normalizeUrl(galleryPath)
+            } else {
+                galleryPath
+            }
             title = select("#gn").text().nullIfBlank()?.trim()
             altTitle = select("#gj").text().nullIfBlank()?.trim()
 
-            thumbnailUrl = select("#gd1 div").attr("style").nullIfBlank()?.let {
-                it.substring(it.indexOf('(') + 1 until it.lastIndexOf(')'))
-            }
+            thumbnailUrl = select("#gd1 div").attr("style").nullIfBlank()
+                ?.substringAfter("url(", "")
+                ?.substringBefore(")", "")
+                ?.nullIfBlank()
             category = select("#gdc div").text().nullIfBlank()?.trim()?.lowercase()
             uploader = select("#gdn").text().nullIfBlank()?.trim()
 
@@ -73,25 +79,25 @@ object Parser {
                                 translated = right.endsWith(TR_SUFFIX, true)
                             }
                             "file size" -> size = parseHumanReadableByteCount(right)?.toLong()
-                            "length" -> length = right.removeSuffix("pages").trim().nullIfBlank()?.toInt()
-                            "favorited" -> favorites = right.removeSuffix("times").trim().nullIfBlank()?.toInt()
+                            "length" -> length = right.removeSuffix("pages").trim().toIntOrNull()
+                            "favorited" -> favorites = right.removeSuffix("times").trim().toIntOrNull()
                         }
                     }
                 }
             }
 
             averageRating = ignore {
-                select("#rating_label").text().removePrefix("Average:").trim().nullIfBlank()?.toDouble()
+                select("#rating_label").text().removePrefix("Average:").trim().toDoubleOrNull()
             }
             ratingCount = ignore {
-                select("#rating_count").text().trim().nullIfBlank()?.toInt()
+                select("#rating_count").text().trim().toIntOrNull()
             }
 
             tags.clear()
             select("#taglist tr").forEach {
                 val namespace = it.select(".tc").text().removeSuffix(":")
                 val currentTags = it.select("div").map { element ->
-                    Tag(element.text().trim(), element.hasClass("gtl"))
+                    Tag(element.text().trim())
                 }
                 tags[namespace] = currentTags
             }
@@ -105,18 +111,18 @@ object Parser {
 
     fun parseChapterPage(doc: Document): List<String> = doc.select("#gdt a").map { it.attr("href") }
 
-    fun nextPageUrl(doc: Document): String? = doc.selectFirst("a[onclick=return false]")?.last()?.let {
-        if (it.text() == ">") it.attr("href") else null
-    }
+    fun nextPageUrl(doc: Document): String? = doc.selectFirst("table.ptt td:last-child a")
+        ?.takeIf { it.text() == ">" }
+        ?.absUrl("href")
 
     fun parseImageUrl(response: Response, getOriginal: Boolean): String {
         val doc = response.asJsoup()
         val imgUrl = doc.select("#img").attr("abs:src")
-        val nlValue = Regex("nl\\('(.+?)'\\)").find(doc.selectFirst("#loadfail")?.attr("onclick").orEmpty())?.groupValues?.get(1)
 
         if (getOriginal) {
             val originalUrl = doc.selectFirst("a[href*=/fullimg/]")?.attr("abs:href")
             if (!originalUrl.isNullOrEmpty()) {
+                val nlValue = Regex("nl\\('(.+?)'\\)").find(doc.selectFirst("#loadfail")?.attr("onclick").orEmpty())?.groupValues?.get(1)
                 return originalUrl.toHttpUrlOrNull()?.newBuilder()
                     ?.addQueryParameter("nl", nlValue)
                     ?.build()
@@ -124,9 +130,7 @@ object Parser {
             }
         }
 
-        if (nlValue.isNullOrEmpty()) return imgUrl
-        val bakUrl = response.request.url.newBuilder().addQueryParameter("nl", nlValue).toString()
-        return "$imgUrl#$bakUrl"
+        return imgUrl
     }
 
     private const val TR_SUFFIX = "TR"
