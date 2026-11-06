@@ -138,9 +138,7 @@ abstract class Hitomi : KeiSource() {
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        val id = manga.url
-            .substringAfterLast("-")
-            .substringBefore(".")
+        val id = manga.url.galleryId()
 
         val gallery = client.get("$ltnUrl/galleries/$id.js", Fetch.SCRIPT).parseScriptAs<Gallery>()
 
@@ -160,9 +158,7 @@ abstract class Hitomi : KeiSource() {
     override suspend fun getPageList(chapter: SChapter): List<Page> {
         refreshScript()
 
-        val id = chapter.url
-            .substringAfterLast("-")
-            .substringBefore(".")
+        val id = chapter.url.galleryId()
 
         val gallery = client.get("$ltnUrl/galleries/$id.js", Fetch.SCRIPT).parseScriptAs<Gallery>()
 
@@ -182,6 +178,8 @@ abstract class Hitomi : KeiSource() {
             )
         }
     }
+
+    private fun String.galleryId() = substringAfterLast("-").substringBefore(".")
 
     override fun getImageRequest(page: Page): Request {
         val imageHeaders = headersBuilder()
