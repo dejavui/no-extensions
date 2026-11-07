@@ -6,7 +6,6 @@ import android.webkit.CookieManager
 import androidx.preference.CheckBoxPreference
 import androidx.preference.EditTextPreference
 import androidx.preference.PreferenceScreen
-import eu.kanade.tachiyomi.network.awaitSuccess
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
@@ -98,7 +97,7 @@ abstract class EHentai :
 
             chain.proceed(newReq)
         }
-        rateLimit(2)
+        rateLimit(4)
     }
 
     // Popular
@@ -109,8 +108,7 @@ abstract class EHentai :
         } else {
             baseUrl
         }
-        val request = exGetRequest(url, page)
-        val response = client.newCall(request).awaitSuccess()
+        val response = client.get(exGetUrl(url, page), Fetch.DOCUMENT)
         val result = Parser.parseMangaList(response, ehLang, isLangNatural() && getEnforceLanguagePref())
         lastMangaId = result.lastMangaId
         return result.mangasPage
@@ -119,8 +117,7 @@ abstract class EHentai :
     // Latest
 
     override suspend fun getLatestUpdates(page: Int): MangasPage {
-        val request = exGetRequest(baseUrl, page)
-        val response = client.newCall(request).awaitSuccess()
+        val response = client.get(exGetUrl(baseUrl, page), Fetch.DOCUMENT)
         val result = Parser.parseMangaList(response, ehLang, isLangNatural() && getEnforceLanguagePref())
         lastMangaId = result.lastMangaId
         return result.mangasPage
@@ -189,8 +186,7 @@ abstract class EHentai :
             if (page > 1) uri.appendQueryParameter("from", lastMangaId)
         }
 
-        val request = exGetRequest(uri.toString(), page)
-        val response = client.newCall(request).awaitSuccess()
+        val response = client.get(exGetUrl(uri.toString(), page), Fetch.DOCUMENT)
         val result = Parser.parseMangaList(response, ehLang, isLangNatural() && (enforceLanguageFilter || getEnforceLanguagePref()))
         lastMangaId = result.lastMangaId
         return result.mangasPage
@@ -265,14 +261,13 @@ abstract class EHentai :
 
     // Helpers
 
-    private fun exGetRequest(url: String, page: Int): Request {
+    private fun exGetUrl(url: String, page: Int): String {
         val uri = Uri.parse(url).buildUpon()
         if (page > 1) {
             uri.appendQueryParameter("next", lastMangaId)
         }
-        uri.appendQueryParameter("inline_set", "dm_l")
 
-        return Request.Builder().url(uri.toString()).headers(headers).build()
+        return uri.toString()
     }
 
     private fun languageTag(enforceLanguageFilter: Boolean = false): String = if (lang != "all" && (enforceLanguageFilter || getEnforceLanguagePref())) "language:$ehLang" else ""
