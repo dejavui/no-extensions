@@ -19,7 +19,6 @@ import keiyoushi.source.KeiSource
 import keiyoushi.utils.asJsoup
 import keiyoushi.utils.parseAs
 import kotlinx.serialization.json.JsonElement
-import okhttp3.Headers
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
@@ -42,10 +41,6 @@ abstract class Cuutruyencc : KeiSource() {
     override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = this
         .addInterceptor(::drmInterceptor)
         .rateLimit(3)
-
-    override fun Headers.Builder.configureHeaders(): Headers.Builder = apply {
-        removeAll("Origin")
-    }
 
     override suspend fun getPopularManga(page: Int): MangasPage {
         val response = client.get("$baseUrl/api/best-mangas", Fetch.XHR)

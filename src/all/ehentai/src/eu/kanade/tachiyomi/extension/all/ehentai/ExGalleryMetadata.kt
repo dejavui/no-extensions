@@ -17,7 +17,6 @@ class ExGalleryMetadata {
     var category: String? = null
 
     var datePosted: Long? = null
-    var parent: String? = null
     var visible: String? = null // Not a boolean
     var language: String? = null
     var translated: Boolean? = null
@@ -44,7 +43,7 @@ class ExGalleryMetadata {
 
         fun hasToken(url: String) = splitGalleryUrl(url).size >= 3
 
-        fun galleryId(url: String) = splitGalleryUrl(url)[1]
+        fun galleryId(url: String): String = splitGalleryUrl(url)[1]
 
         private fun galleryToken(url: String) = splitGalleryUrl(url)[2]
 

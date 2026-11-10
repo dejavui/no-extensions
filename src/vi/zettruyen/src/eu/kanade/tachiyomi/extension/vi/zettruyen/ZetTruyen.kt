@@ -225,7 +225,6 @@ abstract class ZetTruyen : KeiSource() {
     override fun getImageRequest(page: Page): Request {
         val imageHeaders = headers.newBuilder()
             .set("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
-            .removeAll("Origin")
             .build()
         return super.getImageRequest(page).newBuilder().headers(imageHeaders).build()
     }

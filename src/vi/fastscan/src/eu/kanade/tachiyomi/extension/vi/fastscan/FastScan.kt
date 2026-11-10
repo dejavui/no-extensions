@@ -100,7 +100,7 @@ abstract class FastScan : KeiSource() {
         val manga = SManga.create().apply {
             setUrlWithoutDomain(detailUrl.encodedPath)
         }
-        return fetchMangaUpdate(manga, emptyList(), true, false).manga
+        return fetchMangaUpdate(manga, emptyList(), fetchDetails = true, fetchChapters = false).manga
     }
 
     override suspend fun fetchMangaUpdate(

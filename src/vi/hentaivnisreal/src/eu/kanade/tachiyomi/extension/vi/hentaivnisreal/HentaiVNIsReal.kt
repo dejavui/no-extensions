@@ -32,10 +32,6 @@ abstract class HentaiVNIsReal : KeiSource() {
         rateLimit(3)
     }
 
-    override fun Headers.Builder.configureHeaders(): Headers.Builder = apply {
-        removeAll("Origin")
-    }
-
     // ============================== Popular ===============================
 
     override suspend fun getPopularManga(page: Int): MangasPage {

@@ -198,13 +198,6 @@ abstract class TruyenQQComVN : KeiSource() {
         }
     }
 
-    override fun getImageRequest(page: Page): Request {
-        val requestHeaders = headers.newBuilder()
-            .removeAll("Origin")
-            .build()
-        return super.getImageRequest(page).newBuilder().headers(requestHeaders).build()
-    }
-
     // ============================== Filters ===============================
 
     override fun getFilterList(data: JsonElement?): FilterList = FilterList(
