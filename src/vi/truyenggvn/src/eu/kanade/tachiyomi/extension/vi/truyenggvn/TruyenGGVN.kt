@@ -19,7 +19,6 @@ import okhttp3.CacheControl
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
-import okhttp3.Request
 import org.jsoup.nodes.Document
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
