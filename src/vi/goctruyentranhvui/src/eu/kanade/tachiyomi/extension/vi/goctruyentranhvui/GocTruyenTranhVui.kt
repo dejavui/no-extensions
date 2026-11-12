@@ -234,7 +234,10 @@ abstract class GocTruyenTranhVui :
                                 }
 
                                 window.scrollTo(0, document.body.scrollHeight);
-                                var imgs = document.querySelectorAll('img.image.finished');
+                                var imgs = document.querySelectorAll('div.image-section .img-block img');
+                                if (!imgs || imgs.length === 0) {
+                                    imgs = document.querySelectorAll('img.image.finished');
+                                }
                                 if (!imgs || imgs.length === 0) {
                                     imgs = document.querySelectorAll('img.image');
                                 }
@@ -244,15 +247,19 @@ abstract class GocTruyenTranhVui :
                                 var urls = [];
                                 for (var j = 0; j < imgs.length; j++) {
                                     var img = imgs[j];
-                                    var src = img.src || img.getAttribute('data-src') || img.getAttribute('src');
+                                    var src = img.src ||
+                                        img.getAttribute('data-src') ||
+                                        img.getAttribute('data-original') ||
+                                        img.getAttribute('data-lazy-src') ||
+                                        img.getAttribute('src');
                                     if (!src) continue;
 
                                     var lowerSrc = src.toLowerCase();
-                                    if (lowerSrc.indexOf('google') !== -1 || lowerSrc.indexOf('logo') !== -1 || lowerSrc.indexOf('avatar') !== -1 || lowerSrc.indexOf('icon') !== -1 || lowerSrc.indexOf('facebook') !== -1) {
+                                    if (lowerSrc.indexOf('google') !== -1 || lowerSrc.indexOf('logo') !== -1 || lowerSrc.indexOf('avatar') !== -1 || lowerSrc.indexOf('facebook') !== -1) {
                                         continue;
                                     }
 
-                                    if (src.indexOf('/image/') !== -1 || src.indexOf('/storage/') !== -1 || src.indexOf('/media/') !== -1) {
+                                    if ((src.indexOf('http') === 0 || src.indexOf('/') === 0) && (img.naturalWidth > 100 || img.naturalHeight > 100)) {
                                         if (urls.indexOf(src) === -1) {
                                             urls.push(src);
                                         }
