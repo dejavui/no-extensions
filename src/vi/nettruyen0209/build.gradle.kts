@@ -7,14 +7,14 @@ plugins {
 keiyoushi {
     name = "NetTruyen0209"
     theme = "wpcomics"
-    versionCode = 6
+    versionCode = 7
     contentWarning = ContentWarning.SAFE
     libVersion = "1.6"
 
     source {
         lang = "vi"
         baseUrl {
-            custom("https://nettruyen15s.com")
+            custom("https://nettruyen16s.com")
         }
     }
 }
