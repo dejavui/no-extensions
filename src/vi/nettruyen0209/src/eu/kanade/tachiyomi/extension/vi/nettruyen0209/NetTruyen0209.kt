@@ -13,9 +13,9 @@ import keiyoushi.network.rateLimit
 import keiyoushi.utils.asJsoup
 import keiyoushi.utils.parseAs
 import kotlinx.serialization.Serializable
+import okhttp3.FormBody
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
-import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import org.jsoup.Jsoup
 import java.time.format.DateTimeFormatter
@@ -47,6 +47,8 @@ abstract class NetTruyen0209 : WPComics() {
 
     override fun popularMangaNextPageSelector(): String = "a[title=Last Page]"
 
+    override val mangaUrlDirectory = "manga"
+
     // ============================== Pages =================================
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
@@ -60,12 +62,12 @@ abstract class NetTruyen0209 : WPComics() {
         val chapterId = CHAPTER_ID_REGEX.find(document.html())?.groupValues?.get(1)
             ?: return emptyList()
 
-        val ajaxHeaders = headersBuilder()
-            .add("X-Requested-With", "XMLHttpRequest")
-            .add("Referer", response.request.url.toString())
-            .build()
-
-        val ajaxResponse = client.post("$baseUrl/ajax/image/list/chap/$chapterId?cache=0", ajaxHeaders, Fetch.XHR, "".toRequestBody())
+        val ajaxResponse = client.post(
+            "$baseUrl/ajax/image/list/chap/$chapterId?cache=0",
+            headersBuilder().set("X-Requested-With", "XMLHttpRequest").build(),
+            Fetch.XHR.from(response.request.url),
+            FormBody.Builder().build(),
+        )
         return parsePageList(ajaxResponse)
     }
 
@@ -75,12 +77,13 @@ abstract class NetTruyen0209 : WPComics() {
         } else {
             response.asJsoup().html()
         }
-        val document = Jsoup.parseBodyFragment(html, baseUrl)
+        val document = Jsoup.parseBodyFragment(html, baseUrl).select(pageListSelector)
 
-        return document.select(pageListSelector).mapNotNull { imageOrNull(it) }
+        return document.asSequence().mapNotNull(::imageOrNull)
             .filterNot { it.startsWith("data:") }
+            .filterNot { "/uploads/tmp/" in it }
             .distinct()
-            .mapIndexed { i, url -> Page(i, imageUrl = url) }
+            .mapIndexed { i, url -> Page(i, imageUrl = url) }.toList()
     }
 
     override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {

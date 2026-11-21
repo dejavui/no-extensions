@@ -7,7 +7,7 @@ plugins {
 keiyoushi {
     name = "NetTruyen0209"
     theme = "wpcomics"
-    versionCode = 7
+    versionCode = 8
     contentWarning = ContentWarning.SAFE
     libVersion = "1.6"
 
