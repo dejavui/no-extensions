@@ -12,6 +12,7 @@ import keiyoushi.network.Fetch
 import keiyoushi.network.get
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
+import keiyoushi.utils.firstInstanceOrNull
 import keiyoushi.utils.parseAs
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -60,7 +61,7 @@ abstract class MiMi : KeiSource() {
             (it is GenresFilter && it.state.any { g -> g.state != Filter.TriState.STATE_IGNORE }) ||
                 (it is TextField && it.state.isNotEmpty())
         }
-        val sortId = filters.filterIsInstance<SortByFilter>().firstOrNull()?.selectedSort ?: ""
+        val sortId = filters.firstInstanceOrNull<SortByFilter>()?.selectedSort ?: ""
 
         val url = apiUrl.toHttpUrl().newBuilder().apply {
             addPathSegments("manga")

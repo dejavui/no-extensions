@@ -76,7 +76,7 @@ abstract class ViTruyen : KeiSource() {
             }
         }.build()
 
-        val headers = headers.newBuilder().set("Accept", "application/json").build()
+        val headers = headersBuilder().set("Accept", "application/json").build()
         client.get(url, headers, Fetch.NONE).use { response ->
             return parseMangaPage(response)
         }
@@ -122,7 +122,7 @@ abstract class ViTruyen : KeiSource() {
     private fun parseMangaDetails(document: Document): SManga = SManga.create().apply {
         val hero = document.selectFirst(".v2-detail-hero")!!
         val alternativeName = hero.selectFirst(".mt-4:contains(Tên khác) p")
-        title = hero.selectFirst("h1")?.text() ?: ""
+        title = hero.selectFirst("h1")?.text()!!
         thumbnail_url = hero.selectFirst("img")?.attr("abs:src")
         description = buildString {
             alternativeName?.text()?.let {

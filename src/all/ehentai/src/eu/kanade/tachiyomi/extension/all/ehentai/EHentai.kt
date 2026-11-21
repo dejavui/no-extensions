@@ -21,6 +21,7 @@ import keiyoushi.network.get
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
 import keiyoushi.utils.asJsoup
+import keiyoushi.utils.firstInstanceOrNull
 import keiyoushi.utils.getPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -163,14 +164,14 @@ abstract class EHentai :
         }"
         val uri = Uri.parse(baseSearchUrl).buildUpon()
 
-        filters.filterIsInstance<GenreGroup>().firstOrNull()?.state?.let { options ->
+        filters.firstInstanceOrNull<GenreGroup>()?.state?.let { options ->
             if (options.none { it.state }) {
                 options.forEach { it.state = true }
             }
         }
 
-        val favorites = filters.filterIsInstance<Favorites>().firstOrNull()?.state == true
-        val watched = filters.filterIsInstance<Watched>().firstOrNull()?.state == true
+        val favorites = filters.firstInstanceOrNull<Favorites>()?.state == true
+        val watched = filters.firstInstanceOrNull<Watched>()?.state == true
 
         if (favorites) {
             uri.appendPath("favorites.php")

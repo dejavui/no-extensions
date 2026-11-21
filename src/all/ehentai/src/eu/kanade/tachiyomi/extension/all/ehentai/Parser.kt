@@ -37,7 +37,7 @@ object Parser {
                         lastId = ExGalleryMetadata.galleryId(href)
                     }
                 }
-                element.parent()?.select(".glthumb img")?.first()?.apply {
+                element.parent()?.selectFirst(".glthumb img")?.first()?.apply {
                     thumbnail_url = attr("data-src").nullIfBlank() ?: attr("src")
                 }
             }
@@ -97,7 +97,7 @@ object Parser {
             select("#taglist tr").forEach {
                 val namespace = it.select(".tc").text().removeSuffix(":")
                 val currentTags = it.select("div").map { element ->
-                    Tag(element.text().trim())
+                    Tag(element.text())
                 }
                 tags[namespace] = currentTags
             }

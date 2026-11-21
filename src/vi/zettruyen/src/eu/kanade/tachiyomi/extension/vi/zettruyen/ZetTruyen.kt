@@ -191,8 +191,8 @@ abstract class ZetTruyen : KeiSource() {
             .addQueryParameter("per_page", "100")
             .addQueryParameter("order", "desc")
             .build()
-        val apiHeaders = headers.newBuilder()
-            .add("Accept", "application/json")
+        val apiHeaders = headersBuilder()
+            .set("Accept", "application/json")
             .build()
 
         return client.get(apiUrl, apiHeaders, Fetch.XHR).parseAs<ChapterListResponse>()
@@ -223,7 +223,7 @@ abstract class ZetTruyen : KeiSource() {
     }
 
     override fun getImageRequest(page: Page): Request {
-        val imageHeaders = headers.newBuilder()
+        val imageHeaders = headersBuilder()
             .set("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
             .build()
         return super.getImageRequest(page).newBuilder().headers(imageHeaders).build()

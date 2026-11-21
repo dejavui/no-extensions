@@ -31,8 +31,6 @@ abstract class TheGioiTruyen : KeiSource() {
         rateLimit(3)
     }
 
-    override val supportsLatest = true
-
     override suspend fun getPopularManga(page: Int): MangasPage {
         val pagePart = if (page > 1) "page/$page/" else ""
         val response = client.get("$baseUrl/truyen/$pagePart", Fetch.DOCUMENT)
@@ -97,7 +95,7 @@ abstract class TheGioiTruyen : KeiSource() {
         val response = client.get("$baseUrl/the-loai/", Fetch.DOCUMENT)
         val document = response.asJsoup()
         val genres = document.select("a.tgt-genre-card").mapNotNull { element ->
-            val name = element.selectFirst(".tgt-genre-name")?.text()?.trim() ?: return@mapNotNull null
+            val name = element.selectFirst(".tgt-genre-name")!!.text()
             val value = element.attr("href").removeSuffix("/").substringAfterLast("/")
             FilterOption(name, value)
         }

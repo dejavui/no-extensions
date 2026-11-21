@@ -95,7 +95,7 @@ abstract class TruyenQQ : KeiSource() {
         val manga = document.select("ul.grid > li").map { element ->
             SManga.create().apply {
                 val anchor = element.selectFirst(".book_info .qtip a")!!
-                setUrlWithoutDomain(anchor.attr("href"))
+                setUrlWithoutDomain(anchor.absUrl("href"))
                 title = anchor.text()
                 thumbnail_url = element.selectFirst(".book_avatar img")?.absUrl("src")
             }
@@ -159,7 +159,7 @@ abstract class TruyenQQ : KeiSource() {
 
     private fun parseChapterList(document: Document): List<SChapter> = document.select("div.works-chapter-list div.works-chapter-item").map { element ->
         SChapter.create().apply {
-            setUrlWithoutDomain(element.selectFirst("a")!!.attr("href"))
+            setUrlWithoutDomain(element.selectFirst("a")!!.absUrl("href"))
             name = element.select("a").text().trim()
             date_upload = dateFormat.tryParseDate(element.select(".time-chap").text(), dateZone)
         }

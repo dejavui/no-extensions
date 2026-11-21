@@ -96,7 +96,7 @@ abstract class TruyenQQComVN : KeiSource() {
         val manga = document.select(".listing .item").map { element ->
             SManga.create().apply {
                 val anchor = element.selectFirst("h3 a")!!
-                setUrlWithoutDomain(anchor.attr("href"))
+                setUrlWithoutDomain(anchor.absUrl("href"))
                 title = anchor.text()
                 thumbnail_url = element.selectFirst(".cover img")?.absUrl("src")
             }
@@ -137,7 +137,7 @@ abstract class TruyenQQComVN : KeiSource() {
     private fun parseMangaDetails(document: Document): SManga = SManga.create().apply {
         val info = document.selectFirst(".book-info")!!
 
-        title = document.selectFirst("h1[itemprop=name]")?.text() ?: ""
+        title = document.selectFirst("h1[itemprop=name]")?.text()!!
         author = info.select(".line:has(.fa-user) .result span").joinToString { it.text() }
         genre = info.select(".line:has(.fa-folder) .result a").joinToString { it.text() }
         description = document.selectFirst("div[itemprop=description]")?.wholeText()?.trim()
@@ -156,8 +156,8 @@ abstract class TruyenQQComVN : KeiSource() {
     private fun parseChapterList(document: Document): List<SChapter> = document.select("#chapter-list .item").map { element ->
         SChapter.create().apply {
             val anchor = element.selectFirst(".item-name a")!!
-            setUrlWithoutDomain(anchor.attr("href"))
-            name = anchor.text().trim()
+            setUrlWithoutDomain(anchor.absUrl("href"))
+            name = anchor.text()
             date_upload = parseRelativeDate(element.selectFirst(".item-time")?.text())
         }
     }
@@ -165,7 +165,7 @@ abstract class TruyenQQComVN : KeiSource() {
     private fun parseRelativeDate(date: String?): Long {
         if (date == null) return 0L
         val now = Clock.System.now()
-        val number = date.replace(Regex("[^0-9]"), "").trim().toIntOrNull() ?: 0
+        val number = date.replace(nonDigitRegex, "").trim().toIntOrNull() ?: 0
         val duration = when {
             date.contains("giây trước", ignoreCase = true) -> number.seconds
             date.contains("phút trước", ignoreCase = true) -> number.minutes
@@ -187,7 +187,7 @@ abstract class TruyenQQComVN : KeiSource() {
             val document = response.asJsoup()
             val loginBox = document.selectFirst("div.login-required-box")
             if (loginBox != null) {
-                throw Exception(loginBox.text().trim())
+                throw Exception(loginBox.text())
             }
             return document
                 .select(".inner img.lazy")
@@ -204,4 +204,8 @@ abstract class TruyenQQComVN : KeiSource() {
         SoftFilter(),
         GenreFilter(getGenreList()),
     )
+
+    companion object {
+        private val nonDigitRegex = Regex("""[^0-9]""")
+    }
 }

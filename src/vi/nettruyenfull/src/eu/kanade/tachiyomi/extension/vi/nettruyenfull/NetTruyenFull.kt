@@ -25,7 +25,7 @@ abstract class NetTruyenFull : WPComics() {
     override fun chapterFromElement(element: Element): SChapter = SChapter.create().apply {
         element.select("a").let {
             name = it.text()
-            setUrlWithoutDomain(it.attr("href"))
+            setUrlWithoutDomain(it.attr("abs:href"))
         }
         date_upload = element.select("div.col-xs-7, div.col-xs-4").text().toDate()
     }

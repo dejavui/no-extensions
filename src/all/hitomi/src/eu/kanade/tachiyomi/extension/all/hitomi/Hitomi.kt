@@ -15,6 +15,7 @@ import keiyoushi.network.get
 import keiyoushi.source.KeiSource
 import keiyoushi.utils.jsonInstance
 import keiyoushi.utils.parseAs
+import keiyoushi.utils.sha256
 import keiyoushi.utils.tryParseDateTime
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -33,7 +34,6 @@ import okhttp3.internal.http2.ErrorCode
 import okhttp3.internal.http2.StreamResetException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.security.MessageDigest
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.LinkedList
@@ -586,9 +586,7 @@ abstract class Hitomi : KeiSource() {
         return decodeNode(nodedata)
     }
 
-    private fun hashTerm(term: String): UByteArray = sha256(term.toByteArray()).copyOfRange(0, 4).toUByteArray()
-
-    private fun sha256(data: ByteArray): ByteArray = MessageDigest.getInstance("SHA-256").digest(data)
+    private fun hashTerm(term: String): UByteArray = term.sha256().copyOfRange(0, 4).toUByteArray()
 
     // gallery & manga logic
 
@@ -762,7 +760,7 @@ const val IMAGE_LOOPBACK_HOST = "127.0.0.1"
 const val IMAGE_THUMBNAIL = "is_thumbnail"
 const val IMAGE_GIF = "is_gif"
 
-private val whitespaceRegex = Regex("\\s+")
+private val whitespaceRegex = Regex("""\s+""")
 private val ggScriptOffsetRegex = Regex("var o = (\\d)")
 private val ggScriptBreakRegex = Regex("o = (\\d); break;")
 private val ggScriptCaseRegex = Regex("case (\\d+):")
