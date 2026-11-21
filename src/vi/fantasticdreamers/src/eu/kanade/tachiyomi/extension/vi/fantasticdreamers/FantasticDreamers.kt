@@ -18,7 +18,6 @@ import kotlinx.coroutines.coroutineScope
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
-import okhttp3.Request
 
 @Source
 abstract class FantasticDreamers : KeiSource() {
@@ -52,7 +51,7 @@ abstract class FantasticDreamers : KeiSource() {
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate = coroutineScope {
-        val document = client.get(getMangaUrl(manga), Fetch.DOCUMENT).use { it.asJsoup() }
+        val document = client.get(getMangaUrl(manga), Fetch.DOCUMENT).asJsoup()
 
         val mangaDetailsDeferred = if (fetchDetails) {
             async {
@@ -113,13 +112,6 @@ abstract class FantasticDreamers : KeiSource() {
         document.select(".check-box img").mapIndexed { index, element ->
             Page(index, imageUrl = element.attr("abs:src"))
         }
-    }
-
-    override fun getImageRequest(page: Page): Request {
-        val requestHeaders = headers.newBuilder()
-            .removeAll("Origin")
-            .build()
-        return super.getImageRequest(page).newBuilder().headers(requestHeaders).build()
     }
 
     private fun apiUrl(label: String): HttpUrl.Builder = baseUrl.toHttpUrl().newBuilder()
