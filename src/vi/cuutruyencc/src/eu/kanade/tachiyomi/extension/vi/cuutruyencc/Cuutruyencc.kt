@@ -16,7 +16,9 @@ import keiyoushi.network.Fetch
 import keiyoushi.network.get
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
+import keiyoushi.utils.MarkdownDescription
 import keiyoushi.utils.asJsoup
+import keiyoushi.utils.firstInstanceOrNull
 import keiyoushi.utils.parseAs
 import kotlinx.serialization.json.JsonElement
 import okhttp3.HttpUrl
@@ -63,7 +65,7 @@ abstract class Cuutruyencc : KeiSource() {
             addQueryParameter("q", query)
             addQueryParameter("page", page.toString())
 
-            filters.filterIsInstance<GenreFilter>().firstOrNull()?.state
+            filters.firstInstanceOrNull<GenreFilter>()?.state
                 ?.filter { it.state }
                 ?.map { it.name }
                 ?.takeIf { it.isNotEmpty() }
@@ -110,28 +112,19 @@ abstract class Cuutruyencc : KeiSource() {
         val moreInfo = document.selectFirst(".bg-gray-200.p-4")
         title = document.selectFirst("h1")?.text() ?: title
         author = document.selectFirst("h2")?.text()
-        description = buildString {
-            document.selectFirst("#manga-description")?.wholeText()?.trim()?.let {
-                append(it, "\n\n")
-            }
-
-            moreInfo?.let { info ->
-                info.selectFirst("div:contains(Nguồn truyện) + div")?.text()?.let {
-                    append("Nguồn: ", it, "\n")
+        description = MarkdownDescription.Builder()
+            .description(document.selectFirst("#manga-description"))
+            .apply {
+                moreInfo?.let { info ->
+                    field("Nguồn", info.selectFirst("div:contains(Nguồn truyện) + div")?.text())
+                    field("Thông tin thêm", info.selectFirst("div:contains(Thông tin thêm) + div")?.text())
+                    altTitles(
+                        info.select("div:contains(Tên khác:) + div span.text-gray-600").map { it.text() },
+                        label = "Tên khác",
+                    )
                 }
-
-                info.selectFirst("div:contains(Thông tin thêm) + div")?.text()?.let {
-                    append("Thông tin thêm: ", it, "\n")
-                }
-
-                info.select("div:contains(Tên khác:) + div span.text-gray-600")
-                    .map { it.text().trim() }
-                    .filter { it.isNotEmpty() }
-                    .joinToString("\n") { "• $it" }
-                    .takeIf { it.isNotEmpty() }
-                    ?.let { append("Tên khác:\n", it) }
             }
-        }.trim()
+            .build()
         genre = document.select("a[href*=/tag/]").joinToString { it.text() }
         thumbnail_url = document.selectFirst("img.manga-cover")?.absUrl("src")
         initialized = true
@@ -233,14 +226,15 @@ abstract class Cuutruyencc : KeiSource() {
     private fun parseDrmData(drmData: String): List<Pair<Int, Int>> = try {
         val raw = Base64.decode(
             drmData
-                .replace(Regex("\\s+"), ""),
+                .replace(whitespaceRegex, ""),
             Base64.DEFAULT,
         )
         val key = (PI * 10.0.pow(15)).roundToLong().toString()
-        val out = StringBuilder()
-        for (i in raw.indices) {
-            val ch = (raw[i].toInt() xor key[i % key.length].code).toChar()
-            out.append(ch)
+        val out = buildString {
+            for (i in raw.indices) {
+                val ch = (raw[i].toInt() xor key[i % key.length].code).toChar()
+                append(ch)
+            }
         }
         val parts = out.split('|').toMutableList()
         if (parts.isNotEmpty() && parts[0].startsWith("#v")) parts.removeAt(0)
@@ -290,5 +284,6 @@ abstract class Cuutruyencc : KeiSource() {
 
     companion object {
         private const val DRM_QUERY = "ctcc_drm"
+        private val whitespaceRegex = Regex("""\s+""")
     }
 }
