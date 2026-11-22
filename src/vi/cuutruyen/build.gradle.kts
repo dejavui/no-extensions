@@ -23,6 +23,6 @@ keiyoushi {
     deeplink {
         host("cuutruyen.net")
         host("hetcuutruyen.net")
-        path("/mangas/..*")
+        path("/mangas/.*")
     }
 }
