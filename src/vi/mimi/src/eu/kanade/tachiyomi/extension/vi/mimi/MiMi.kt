@@ -11,8 +11,8 @@ import keiyoushi.network.Fetch
 import keiyoushi.network.get
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
-import keiyoushi.utils.firstInstanceOrNull
 import keiyoushi.source.SMangaUpdate
+import keiyoushi.utils.firstInstanceOrNull
 import keiyoushi.utils.parseAs
 import kotlinx.serialization.json.JsonElement
 import okhttp3.HttpUrl
