@@ -5,16 +5,14 @@ import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
-import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import keiyoushi.annotation.Source
 import keiyoushi.network.Fetch
 import keiyoushi.network.get
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
+import keiyoushi.source.SMangaUpdate
 import keiyoushi.utils.asJsoup
 import keiyoushi.utils.parseAs
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
@@ -50,60 +48,56 @@ abstract class FantasticDreamers : KeiSource() {
         chapters: List<SChapter>,
         fetchDetails: Boolean,
         fetchChapters: Boolean,
-    ): SMangaUpdate = coroutineScope {
+    ): SMangaUpdate {
         val document = client.get(getMangaUrl(manga), Fetch.DOCUMENT).asJsoup()
 
-        val mangaDetailsDeferred = if (fetchDetails) {
-            async {
-                manga.apply {
-                    description = document.selectFirst("#synopsis")?.text()
-                    genre = document.select("article.oh.a2 .label").joinToString { it.text() }
+        return SMangaUpdate(
+            manga = {
+                if (fetchDetails) {
+                    manga.apply {
+                        description = document.selectFirst("#synopsis")?.text()
+                        genre = document.select("article.oh.a2 .label").joinToString { it.text() }
 
-                    document.select("#extra-info .y6x11p").forEach { element ->
-                        val text = element.text()
-                        when {
-                            text.contains("Tác giả") -> author = element.selectFirst(".dt")?.text()
-                            text.contains("Họa sĩ") -> artist = element.selectFirst(".dt")?.text()
+                        document.select("#extra-info .y6x11p").forEach { element ->
+                            val text = element.text()
+                            when {
+                                text.contains("Tác giả") -> author = element.selectFirst(".dt")?.text()
+                                text.contains("Họa sĩ") -> artist = element.selectFirst(".dt")?.text()
+                            }
+                        }
+
+                        status = document.selectFirst("aside.s1 .y6x11p:contains(Trạng thái) .dt a")?.text().let {
+                            when (it?.lowercase()) {
+                                "đang tiến hành" -> SManga.ONGOING
+                                "hoàn thành" -> SManga.COMPLETED
+                                "tạm dừng" -> SManga.ON_HIATUS
+                                "huỷ bỏ" -> SManga.CANCELLED
+                                else -> SManga.UNKNOWN
+                            }
                         }
                     }
+                } else {
+                    manga
+                }
+            },
+            chapters = {
+                if (fetchChapters) {
+                    val label = chapterFeedRegex.find(document.html())?.groupValues?.get(1)
+                        ?: manga.title.trim()
 
-                    status = document.selectFirst("aside.s1 .y6x11p:contains(Trạng thái) .dt a")?.text().let {
-                        when (it?.lowercase()) {
-                            "đang tiến hành" -> SManga.ONGOING
-                            "hoàn thành" -> SManga.COMPLETED
-                            "tạm dừng" -> SManga.ON_HIATUS
-                            "huỷ bỏ" -> SManga.CANCELLED
-                            else -> SManga.UNKNOWN
-                        }
+                    val url = apiUrl(label)
+                        .addQueryParameter("max-results", "150")
+                        .build()
+
+                    client.get(url, Fetch.DOCUMENT).use { feedResponse ->
+                        val feed = feedResponse.parseAs<BloggerFeedDto>()
+                        feed.feed?.entry?.filter { it.category?.any { cat -> cat.term == "Chapter" } == true }
+                            ?.map { it.toSChapter(baseUrl) } ?: emptyList()
                     }
+                } else {
+                    chapters
                 }
-            }
-        } else {
-            null
-        }
-
-        val chaptersListDeferred = if (fetchChapters) {
-            async {
-                val label = chapterFeedRegex.find(document.html())?.groupValues?.get(1)
-                    ?: manga.title.trim()
-
-                val url = apiUrl(label)
-                    .addQueryParameter("max-results", "150")
-                    .build()
-
-                client.get(url, Fetch.DOCUMENT).use { feedResponse ->
-                    val feed = feedResponse.parseAs<BloggerFeedDto>()
-                    feed.feed?.entry?.filter { it.category?.any { cat -> cat.term == "Chapter" } == true }
-                        ?.map { it.toSChapter(baseUrl) } ?: emptyList()
-                }
-            }
-        } else {
-            null
-        }
-
-        SMangaUpdate(
-            manga = mangaDetailsDeferred?.await() ?: manga,
-            chapters = chaptersListDeferred?.await() ?: chapters,
+            },
         )
     }
 
