@@ -3,10 +3,10 @@ package eu.kanade.tachiyomi.extension.vi.nettruyenfull
 import eu.kanade.tachiyomi.multisrc.wpcomics.WPComics
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
-import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import keiyoushi.annotation.Source
 import keiyoushi.network.rateLimit
 import keiyoushi.utils.asJsoup
+import keiyoushi.source.SMangaUpdate
 import okhttp3.OkHttpClient
 import okhttp3.Response
 import org.jsoup.nodes.Element

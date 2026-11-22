@@ -13,13 +13,13 @@ import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
-import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import keiyoushi.annotation.Source
 import keiyoushi.network.Fetch
 import keiyoushi.network.addCookie
 import keiyoushi.network.get
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
+import keiyoushi.source.SMangaUpdate
 import keiyoushi.utils.asJsoup
 import keiyoushi.utils.firstInstanceOrNull
 import keiyoushi.utils.getPreferences
@@ -28,6 +28,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonElement
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -194,7 +195,7 @@ abstract class EHentai :
     }
 
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
-        if ((url.host == "e-hentai.org" || url.host == "exhentai.org") && url.pathSegments.getOrNull(0) == "g") {
+        if ((url.host == baseUrl.toHttpUrl().host || url.host == "exhentai.org") && url.pathSegments.getOrNull(0) == "g") {
             val response = client.get(url, Fetch.DOCUMENT)
             return Parser.parseDetails(response)
         }
