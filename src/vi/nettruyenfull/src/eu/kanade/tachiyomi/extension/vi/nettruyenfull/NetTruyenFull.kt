@@ -5,8 +5,8 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import keiyoushi.annotation.Source
 import keiyoushi.network.rateLimit
-import keiyoushi.utils.asJsoup
 import keiyoushi.source.SMangaUpdate
+import keiyoushi.utils.asJsoup
 import okhttp3.OkHttpClient
 import okhttp3.Response
 import org.jsoup.nodes.Element
