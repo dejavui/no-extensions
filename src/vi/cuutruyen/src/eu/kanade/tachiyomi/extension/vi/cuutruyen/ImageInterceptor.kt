@@ -38,7 +38,7 @@ class ImageInterceptor : Interceptor {
 
         val data = Base64.decode(drmData, Base64.DEFAULT)
             .decodeXorCipher(DECRYPTION_KEY)
-            .toString(Charsets.UTF_8)
+            .decodeToString()
 
         if (!data.startsWith("#v4|")) {
             throw IOException("Invalid DRM data (does not start with expected magic bytes): $data")
@@ -60,7 +60,7 @@ class ImageInterceptor : Interceptor {
     }
 
     private fun ByteArray.decodeXorCipher(key: String): ByteArray {
-        val k = key.toByteArray(Charsets.UTF_8)
+        val k = key.encodeToByteArray()
 
         return this.mapIndexed { i, b ->
             (b.toInt() xor k[i % k.size].toInt()).toByte()
