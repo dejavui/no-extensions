@@ -17,8 +17,6 @@ import keiyoushi.source.KeiSource
 import keiyoushi.source.SMangaUpdate
 import keiyoushi.utils.getPreferences
 import keiyoushi.utils.parseAs
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.JsonElement
 import okhttp3.CacheControl
 import okhttp3.HttpUrl
@@ -102,7 +100,7 @@ abstract class CuuTruyen :
                 emptyList(),
                 fetchDetails = true,
                 fetchChapters = false,
-            ).manga
+            ).manga()
             return MangasPage(listOf(details), false)
         }
 
@@ -184,29 +182,26 @@ abstract class CuuTruyen :
         val mangaId = manga.url.substringAfterLast('/')
         val useMobileCover = preferences.useMobileCover
 
-        val details = async {
-            if (fetchDetails) {
-                client.get("$apiUrl/mangas/$mangaId", Fetch.NONE).use { response ->
-                    response.parseAs<ResponseDto<MangaDto>>()
+        return SMangaUpdate(
+            manga = {
+                if (fetchDetails) {
+                    client.get("$baseUrl/api/v2/mangas/$mangaId", Fetch.XHR)
+                        .parseAs<ResponseDto<MangaDto>>()
                         .data.toSManga(useMobileCover)
+                } else {
+                    manga
                 }
-            } else {
-                manga
-            }
-        }
-
-        val chaptersList = async {
-            if (fetchChapters) {
-                client.get("$apiUrl/mangas/$mangaId/chapters", Fetch.NONE, CacheControl.FORCE_NETWORK).use { response ->
-                    response.parseAs<ResponseDto<List<ChapterDto>>>()
+            },
+            chapters = {
+                if (fetchChapters) {
+                    client.get("$baseUrl/api/v2/mangas/$mangaId/chapters", Fetch.XHR)
+                        .parseAs<ResponseDto<List<ChapterDto>>>()
                         .data.map { it.toSChapter(mangaId) }
+                } else {
+                    chapters
                 }
-            } else {
-                chapters
-            }
-        }
-
-        SMangaUpdate(details.await(), chaptersList.await())
+            },
+        )
     }
 
     // =============================== Pages ================================
